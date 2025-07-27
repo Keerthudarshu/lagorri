@@ -11,59 +11,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    $products = loadJsonData('products.json');
-    
-    // Apply filters based on query parameters
+    // Get query parameters
     $category = $_GET['category'] ?? '';
     $subcategory = $_GET['subcategory'] ?? '';
     $search = $_GET['search'] ?? '';
     $featured = $_GET['featured'] ?? '';
     $newArrival = $_GET['new'] ?? '';
-    $limit = intval($_GET['limit'] ?? 0);
+    $limit = intval($_GET['limit'] ?? 20);
     $priceRange = $_GET['price'] ?? '';
     
-    $filteredProducts = $products;
-    
-    // Filter by category
+    // Get category ID if category slug is provided
+    $categoryId = null;
     if ($category) {
-        $filteredProducts = array_filter($filteredProducts, function($product) use ($category) {
-            return $product['category'] === $category;
-        });
+        $categories = getCategories();
+        foreach ($categories as $cat) {
+            if ($cat['slug'] === $category) {
+                $categoryId = $cat['id'];
+                break;
+            }
+        }
     }
     
-    // Filter by subcategory
-    if ($subcategory) {
+    // Get products based on search or category
+    if ($search) {
+        $filteredProducts = searchProducts($search, $limit);
+    } else {
+        $filteredProducts = getProducts($categoryId, $limit, $featured === 'true');
+    }
+    
+    // Additional filtering for subcategory if needed
+    if ($subcategory && !empty($filteredProducts)) {
         $filteredProducts = array_filter($filteredProducts, function($product) use ($subcategory) {
             return $product['subcategory'] === $subcategory;
         });
     }
     
-    // Filter by search term
-    if ($search) {
-        $searchLower = strtolower($search);
-        $filteredProducts = array_filter($filteredProducts, function($product) use ($searchLower) {
-            return strpos(strtolower($product['name']), $searchLower) !== false ||
-                   strpos(strtolower($product['description']), $searchLower) !== false ||
-                   in_array($searchLower, array_map('strtolower', $product['tags'] ?? []));
-        });
-    }
-    
-    // Filter by featured
-    if ($featured === 'true') {
-        $filteredProducts = array_filter($filteredProducts, function($product) {
-            return $product['featured'] ?? false;
-        });
-    }
-    
-    // Filter by new arrivals
-    if ($newArrival === 'true') {
-        $filteredProducts = array_filter($filteredProducts, function($product) {
-            return $product['newArrival'] ?? false;
-        });
-    }
-    
-    // Filter by price range
-    if ($priceRange) {
+    // Filter by price range if needed
+    if ($priceRange && !empty($filteredProducts)) {
         $filteredProducts = array_filter($filteredProducts, function($product) use ($priceRange) {
             $price = $product['price'];
             switch ($priceRange) {
@@ -81,30 +65,29 @@ try {
         });
     }
     
-    // Sort products (default by name)
-    $sortBy = $_GET['sort'] ?? 'name';
-    usort($filteredProducts, function($a, $b) use ($sortBy) {
-        switch ($sortBy) {
-            case 'price_low':
-                return $a['price'] <=> $b['price'];
-            case 'price_high':
-                return $b['price'] <=> $a['price'];
-            case 'newest':
-                return ($b['newArrival'] ?? false) <=> ($a['newArrival'] ?? false);
-            default:
-                return $a['name'] <=> $b['name'];
-        }
-    });
-    
-    // Apply limit
-    if ($limit > 0) {
-        $filteredProducts = array_slice($filteredProducts, 0, $limit);
-    }
+    // Format product data for frontend
+    $formattedProducts = array_map(function($product) {
+        return [
+            'id' => $product['id'],
+            'name' => $product['name'],
+            'description' => $product['description'],
+            'price' => $product['price'],
+            'originalPrice' => $product['original_price'],
+            'category' => $product['category_id'],
+            'subcategory' => $product['subcategory'],
+            'sku' => $product['sku'],
+            'inStock' => $product['stock_quantity'] > 0,
+            'featured' => (bool)$product['is_featured'],
+            'newArrival' => (bool)$product['is_new_arrival'],
+            'images' => [$product['primary_image'] ?? ''],
+            'stockQuantity' => $product['stock_quantity']
+        ];
+    }, $filteredProducts);
     
     // Re-index array to ensure proper JSON encoding
-    $filteredProducts = array_values($filteredProducts);
+    $formattedProducts = array_values($formattedProducts);
     
-    echo json_encode($filteredProducts);
+    echo json_encode($formattedProducts);
     
 } catch (Exception $e) {
     http_response_code(500);

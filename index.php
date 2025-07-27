@@ -2,18 +2,10 @@
 require_once 'config.php';
 $pageTitle = 'Home';
 
-// Load products and categories
-$products = loadJsonData('products.json');
-$categories = loadJsonData('categories.json');
-
-// Get featured products and new arrivals
-$featuredProducts = array_filter($products, function($product) {
-    return $product['featured'] ?? false;
-});
-
-$newArrivals = array_filter($products, function($product) {
-    return $product['newArrival'] ?? false;
-});
+// Load products and categories from database
+$categories = getCategories();
+$featuredProducts = getProducts(null, 8, true); // Get 8 featured products
+$newArrivals = getProducts(null, 8); // Get 8 latest products (new arrivals)
 
 include 'includes/header.php';
 ?>
@@ -77,23 +69,20 @@ include 'includes/header.php';
     <div class="container">
         <h2 class="text-center mb-5">Shop by Category</h2>
         <div class="row g-4">
-            <?php foreach(['girls', 'boys', 'infants'] as $categoryKey): ?>
-                <?php if (isset($categories[$categoryKey])): ?>
-                    <?php $category = $categories[$categoryKey]; ?>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="category-card">
-                            <a href="pages/products.php?category=<?= $category['id'] ?>">
-                                <div class="category-image">
-                                    <img src="<?= $category['image'] ?>" alt="<?= $category['name'] ?>" class="img-fluid">
-                                    <div class="category-overlay">
-                                        <h3><?= $category['name'] ?></h3>
-                                        <p>Explore Collection</p>
-                                    </div>
+            <?php foreach($categories as $category): ?>
+                <div class="col-lg-4 col-md-6">
+                    <div class="category-card">
+                        <a href="pages/products.php?category=<?= $category['slug'] ?>">
+                            <div class="category-image">
+                                <img src="<?= $category['image_url'] ?>" alt="<?= $category['name'] ?>" class="img-fluid">
+                                <div class="category-overlay">
+                                    <h3><?= $category['name'] ?></h3>
+                                    <p>Explore Collection</p>
                                 </div>
-                            </a>
-                        </div>
+                            </div>
+                        </a>
                     </div>
-                <?php endif; ?>
+                </div>
             <?php endforeach; ?>
         </div>
     </div>
@@ -117,15 +106,12 @@ include 'includes/header.php';
                     <div class="product-card">
                         <div class="product-image">
                             <a href="pages/product-detail.php?id=<?= $product['id'] ?>">
-                                <img src="<?= $product['images'][0] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
-                                <?php if (isset($product['images'][1])): ?>
-                                    <img src="<?= $product['images'][1] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid hover-image">
-                                <?php endif; ?>
+                                <img src="<?= $product['primary_image'] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
                             </a>
-                            <?php if ($product['newArrival']): ?>
+                            <?php if ($product['is_new_arrival']): ?>
                                 <span class="badge bg-success position-absolute top-0 start-0 m-2">New</span>
                             <?php endif; ?>
-                            <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
+                            <?php if (isset($product['original_price']) && $product['original_price'] > $product['price']): ?>
                                 <span class="badge bg-danger position-absolute top-0 end-0 m-2">Sale</span>
                             <?php endif; ?>
                             <div class="product-actions">
@@ -145,8 +131,8 @@ include 'includes/header.php';
                             </h6>
                             <div class="product-price">
                                 <span class="current-price"><?= formatPrice($product['price']) ?></span>
-                                <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
-                                    <span class="original-price"><?= formatPrice($product['originalPrice']) ?></span>
+                                <?php if (isset($product['original_price']) && $product['original_price'] > $product['price']): ?>
+                                    <span class="original-price"><?= formatPrice($product['original_price']) ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -175,10 +161,7 @@ include 'includes/header.php';
                     <div class="product-card">
                         <div class="product-image">
                             <a href="pages/product-detail.php?id=<?= $product['id'] ?>">
-                                <img src="<?= $product['images'][0] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
-                                <?php if (isset($product['images'][1])): ?>
-                                    <img src="<?= $product['images'][1] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid hover-image">
-                                <?php endif; ?>
+                                <img src="<?= $product['primary_image'] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
                             </a>
                             <span class="badge bg-success position-absolute top-0 start-0 m-2">New</span>
                             <div class="product-actions">
@@ -198,8 +181,8 @@ include 'includes/header.php';
                             </h6>
                             <div class="product-price">
                                 <span class="current-price"><?= formatPrice($product['price']) ?></span>
-                                <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
-                                    <span class="original-price"><?= formatPrice($product['originalPrice']) ?></span>
+                                <?php if (isset($product['original_price']) && $product['original_price'] > $product['price']): ?>
+                                    <span class="original-price"><?= formatPrice($product['original_price']) ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>

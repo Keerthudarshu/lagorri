@@ -20,17 +20,17 @@ try {
             
             switch ($action) {
                 case 'register':
-                    $result = registerUser($input);
+                    $result = handleRegister($input);
                     echo json_encode($result);
                     break;
                     
                 case 'login':
-                    $result = loginUser($input);
+                    $result = handleLogin($input);
                     echo json_encode($result);
                     break;
                     
                 case 'logout':
-                    $result = logoutUser();
+                    $result = handleLogout();
                     echo json_encode($result);
                     break;
                     
@@ -54,74 +54,92 @@ try {
     echo json_encode(['error' => $e->getMessage()]);
 }
 
-function registerUser($data) {
-    $email = $data['email'] ?? '';
-    $password = $data['password'] ?? '';
-    $firstName = $data['firstName'] ?? '';
-    $lastName = $data['lastName'] ?? '';
-    $phone = $data['phone'] ?? '';
-    
+function handleRegister($data) {
     // Validate input
-    if (!$email || !$password || !$firstName || !$lastName) {
+    if (!isset($data['email'], $data['password'], $data['firstName'], $data['lastName'])) {
         throw new Exception('All fields are required');
     }
     
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
         throw new Exception('Invalid email address');
     }
     
-    if (strlen($password) < 6) {
+    if (strlen($data['password']) < 6) {
         throw new Exception('Password must be at least 6 characters long');
     }
     
-    // Load existing users
-    $users = loadJsonData('users.json');
-    
-    // Check if user already exists
-    foreach ($users as $user) {
-        if ($user['email'] === $email) {
-            throw new Exception('User with this email already exists');
-        }
+    try {
+        // Create new user using database function
+        $user = createUser($data);
+        
+        // Set session
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_name'] = $user['name'];
+        
+        return [
+            'success' => true,
+            'message' => 'Registration successful',
+            'user' => $user
+        ];
+    } catch (Exception $e) {
+        throw new Exception($e->getMessage());
+    }
+}
+
+function handleLogin($data) {
+    if (!isset($data['email'], $data['password'])) {
+        throw new Exception('Email and password are required');
     }
     
-    // Create new user
-    $newUser = [
-        'id' => generateId(),
-        'email' => $email,
-        'password' => password_hash($password, PASSWORD_DEFAULT),
-        'firstName' => $firstName,
-        'lastName' => $lastName,
-        'phone' => $phone,
-        'created_at' => date('Y-m-d H:i:s'),
-        'last_login' => null
-    ];
-    
-    $users[] = $newUser;
-    saveJsonData('users.json', $users);
-    
-    // Set session
-    $_SESSION['user_id'] = $newUser['id'];
-    $_SESSION['user_email'] = $newUser['email'];
-    $_SESSION['user_name'] = $newUser['firstName'] . ' ' . $newUser['lastName'];
-    
+    try {
+        // Authenticate user using database function
+        $user = authenticateUser($data['email'], $data['password']);
+        
+        if (!$user) {
+            throw new Exception('Invalid email or password');
+        }
+        
+        // Set session
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_name'] = $user['name'];
+        
+        return [
+            'success' => true,
+            'message' => 'Login successful',
+            'user' => $user
+        ];
+    } catch (Exception $e) {
+        throw new Exception($e->getMessage());
+    }
+}
+
+function handleLogout() {
+    session_destroy();
     return [
         'success' => true,
-        'message' => 'Registration successful',
-        'user' => [
-            'id' => $newUser['id'],
-            'email' => $newUser['email'],
-            'name' => $newUser['firstName'] . ' ' . $newUser['lastName']
-        ]
+        'message' => 'Logged out successfully'
     ];
 }
 
-function loginUser($data) {
-    $email = $data['email'] ?? '';
-    $password = $data['password'] ?? '';
-    
-    if (!$email || !$password) {
-        throw new Exception('Email and password are required');
+function getCurrentUser() {
+    if (isset($_SESSION['user_id'])) {
+        return [
+            'success' => true,
+            'user' => [
+                'id' => $_SESSION['user_id'],
+                'email' => $_SESSION['user_email'],
+                'name' => $_SESSION['user_name']
+            ]
+        ];
     }
+    
+    return [
+        'success' => false,
+        'message' => 'Not logged in'
+    ];
+}
     
     // Load users
     $users = loadJsonData('users.json');

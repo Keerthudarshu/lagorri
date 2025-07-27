@@ -1,8 +1,8 @@
-modules = ["php"]
+modules = ["php", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["php"]
+packages = ["php", "php84Extensions.pdo_pgsql", "postgresql"]
 
 [workflows]
 runButton = "Project"
@@ -22,5 +22,9 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "php -S 0.0.0.0:5000 -t ."
+args = "php -c /nix/store/m74zpl7b86vwg10cwd90svrhh7x601d2-php-with-extensions-8.4.10/lib/php.ini -S 0.0.0.0:5000 -t ."
 waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
