@@ -37,32 +37,41 @@ class ShoppingCart {
             throw new Error('Invalid product ID or quantity');
         }
         
+        console.log('Cart: Adding item', productId, 'quantity:', quantity, 'options:', options);
+        
         // Check if item already exists with same options
         const existingItemIndex = this.cart.findIndex(item => 
-            item.productId === productId && 
+            item.productId == productId && 
             this.optionsMatch(item.options, options)
         );
         
         if (existingItemIndex >= 0) {
             // Update existing item quantity
+            const oldQuantity = this.cart[existingItemIndex].quantity;
             this.cart[existingItemIndex].quantity += quantity;
             
             // Ensure quantity doesn't exceed maximum
             if (this.cart[existingItemIndex].quantity > 10) {
                 this.cart[existingItemIndex].quantity = 10;
             }
+            
+            console.log('Cart: Updated existing item from', oldQuantity, 'to', this.cart[existingItemIndex].quantity);
         } else {
             // Add new item
-            this.cart.push({
+            const newItem = {
                 productId: productId,
                 quantity: Math.min(quantity, 10),
                 options: options,
                 addedAt: new Date().toISOString()
-            });
+            };
+            this.cart.push(newItem);
+            console.log('Cart: Added new item:', newItem);
         }
         
         this.saveCart();
         this.showAddedToCartMessage();
+        
+        console.log('Cart: Current cart state:', this.cart);
         return true;
     }
     
@@ -110,6 +119,9 @@ class ShoppingCart {
         const cartCountElements = document.querySelectorAll('[data-cart-count]');
         const count = this.getItemCount();
         
+        console.log('Cart: Updating cart count to:', count);
+        console.log('Cart: Items in cart:', this.cart);
+        
         cartCountElements.forEach(element => {
             element.textContent = count;
             element.style.display = count > 0 ? 'inline' : 'none';
@@ -120,6 +132,9 @@ class ShoppingCart {
         if (navCartCount) {
             navCartCount.textContent = count;
             navCartCount.style.display = count > 0 ? 'inline' : 'none';
+            console.log('Cart: Updated navbar cart count element');
+        } else {
+            console.log('Cart: Could not find navbar cart count element');
         }
     }
     
@@ -157,12 +172,19 @@ class ShoppingCart {
     async fetchProductData() {
         try {
             const response = await fetch('../api/products.php');
+            if (!response.ok) {
+                throw new Error('Failed to fetch products');
+            }
             const products = await response.json();
             
-            // Filter products that are in the cart
+            // Filter products that are in the cart and ensure we have the right structure
             return products.filter(product => 
-                this.cart.some(cartItem => cartItem.productId === product.id)
-            );
+                this.cart.some(cartItem => cartItem.productId == product.id)
+            ).map(product => ({
+                ...product,
+                // Ensure we have the right image field
+                images: product.images || [product.primary_image || 'https://via.placeholder.com/300x300?text=No+Image']
+            }));
         } catch (error) {
             console.error('Error fetching product data:', error);
             throw error;
@@ -171,10 +193,11 @@ class ShoppingCart {
     
     renderCartItems(products) {
         return this.cart.map(cartItem => {
-            const product = products.find(p => p.id === cartItem.productId);
+            const product = products.find(p => p.id == cartItem.productId);
             if (!product) return '';
             
             const totalPrice = product.price * cartItem.quantity;
+            const productImage = product.primary_image || (product.images && product.images[0]) || 'https://via.placeholder.com/80x80?text=No+Image';
             
             return `
                 <div class="cart-item" data-product-id="${cartItem.productId}">
@@ -182,15 +205,15 @@ class ShoppingCart {
                         <div class="card-body">
                             <div class="row align-items-center">
                                 <div class="col-md-2">
-                                    <img src="${product.images[0]}" alt="${product.name}" 
+                                    <img src="${productImage}" alt="${product.name}" 
                                          class="img-fluid rounded cart-item-image"
                                          style="width: 80px; height: 80px; object-fit: cover;">
                                 </div>
                                 <div class="col-md-4">
                                     <h6 class="mb-1">${product.name}</h6>
                                     <div class="cart-item-options">
-                                        ${cartItem.options.size ? `<small class="text-muted">Size: ${cartItem.options.size}</small>` : ''}
-                                        ${cartItem.options.color ? `<small class="text-muted"> | Color: ${cartItem.options.color}</small>` : ''}
+                                        ${cartItem.options && cartItem.options.size ? `<small class="text-muted">Size: ${cartItem.options.size}</small>` : ''}
+                                        ${cartItem.options && cartItem.options.color ? `<small class="text-muted"> | Color: ${cartItem.options.color}</small>` : ''}
                                     </div>
                                     <small class="text-muted">€${product.price} each</small>
                                 </div>
@@ -206,7 +229,7 @@ class ShoppingCart {
                                     </div>
                                 </div>
                                 <div class="col-md-2">
-                                    <span class="cart-item-price h6">€${totalPrice}</span>
+                                    <span class="cart-item-price h6">€${Math.round(totalPrice)}</span>
                                 </div>
                                 <div class="col-md-2 text-end">
                                     <button class="btn btn-outline-danger btn-sm remove-item" 
@@ -356,28 +379,36 @@ class ShoppingCart {
     }
     
     bindEvents() {
-        // Global add to cart buttons
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('.add-to-cart') || e.target.closest('.add-to-cart')) {
+        // Remove any existing event listeners to prevent duplicates
+        if (this.handleAddToCart) {
+            document.removeEventListener('click', this.handleAddToCart);
+        }
+        
+        // Create a bound event handler
+        this.handleAddToCart = (e) => {
+            // Handle regular add to cart buttons
+            const addToCartButton = e.target.closest('.add-to-cart');
+            if (addToCartButton) {
                 e.preventDefault();
                 e.stopPropagation();
                 
-                const button = e.target.matches('.add-to-cart') ? e.target : e.target.closest('.add-to-cart');
-                const productId = button.dataset.productId;
+                const productId = addToCartButton.dataset.productId;
+                console.log('Cart: Add to cart clicked for product:', productId);
                 
                 if (productId) {
                     this.addItem(productId, 1);
                 }
+                return;
             }
-        });
-        
-        // Add to cart with options (product detail page)
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('.add-to-cart-detail') || e.target.closest('.add-to-cart-detail')) {
+            
+            // Handle product detail page add to cart with options
+            const addToCartDetailButton = e.target.closest('.add-to-cart-detail');
+            if (addToCartDetailButton) {
                 e.preventDefault();
+                e.stopPropagation();
                 
-                const button = e.target.matches('.add-to-cart-detail') ? e.target : e.target.closest('.add-to-cart-detail');
-                const productId = button.dataset.productId;
+                const productId = addToCartDetailButton.dataset.productId;
+                console.log('Cart: Add to cart detail clicked for product:', productId);
                 
                 // Get selected options
                 const sizeElement = document.querySelector('input[name="size"]:checked');
@@ -407,8 +438,13 @@ class ShoppingCart {
                 if (productId) {
                     this.addItem(productId, quantity, options);
                 }
+                return;
             }
-        });
+        };
+        
+        // Bind the event listener with delegation
+        document.addEventListener('click', this.handleAddToCart);
+        console.log('Cart: Event listeners bound');
     }
     
     // Utility method to get cart data for checkout
@@ -423,10 +459,17 @@ class ShoppingCart {
 
 // Initialize cart when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    window.cart = new ShoppingCart();
+    // Only initialize cart if it hasn't been initialized yet
+    if (!window.cart) {
+        window.cart = new ShoppingCart();
+        console.log('Cart system initialized');
+    }
     
     // Expose cart methods globally for backwards compatibility
-    window.addToCart = (productId, quantity, options) => window.cart.addItem(productId, quantity, options);
+    window.addToCart = (productId, quantity, options) => {
+        console.log('Global addToCart called with:', productId, quantity, options);
+        return window.cart.addItem(productId, quantity, options);
+    };
     window.removeFromCart = (productId, options) => window.cart.removeItem(productId, options);
     window.getCart = () => window.cart.getCart();
     window.saveCart = (cartData) => {
@@ -435,4 +478,18 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     window.updateCartCount = () => window.cart.updateCartCount();
     window.getCartItemCount = () => window.cart.getItemCount();
+    
+    // Override main.js functions to ensure consistency
+    if (window.LagoriiApp) {
+        window.LagoriiApp.addToCart = window.addToCart;
+        window.LagoriiApp.removeFromCart = window.removeFromCart;
+        window.LagoriiApp.getCart = window.getCart;
+        window.LagoriiApp.saveCart = window.saveCart;
+        window.LagoriiApp.updateCartCount = window.updateCartCount;
+    }
+    
+    // Ensure cart count is updated on page load
+    setTimeout(() => {
+        window.cart.updateCartCount();
+    }, 100);
 });

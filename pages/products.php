@@ -3,37 +3,64 @@ require_once '../config.php';
 $pageTitle = 'Products';
 
 // Get filter parameters
-$category = $_GET['category'] ?? '';
+$categoryId = $_GET['category'] ?? '';
 $subcategory = $_GET['subcategory'] ?? '';
 $search = $_GET['search'] ?? '';
 $priceRange = $_GET['price'] ?? '';
 $sortBy = $_GET['sort'] ?? 'name';
 
-// Load products
-$products = loadJsonData('products.json');
-$categories = loadJsonData('categories.json');
+// Load data from database
+$categories = getCategories();
+$allProducts = getProducts(); // Get all products first
+
+// Get category name from ID for display purposes
+$categoryName = '';
+if ($categoryId) {
+    foreach ($categories as $cat) {
+        if ($cat['id'] == $categoryId) {
+            $categoryName = strtolower($cat['name']);
+            break;
+        }
+    }
+}
+$category = $categoryName; // For backward compatibility with existing template code
 
 // Filter products
-$filteredProducts = $products;
+$filteredProducts = $allProducts;
 
-if ($category) {
-    $filteredProducts = array_filter($filteredProducts, function($product) use ($category) {
-        return $product['category'] === $category;
+if ($categoryId) {
+    $filteredProducts = array_filter($filteredProducts, function($product) use ($categoryId) {
+        return $product['category_id'] == $categoryId;
     });
 }
 
 if ($subcategory) {
     $filteredProducts = array_filter($filteredProducts, function($product) use ($subcategory) {
-        return $product['subcategory'] === $subcategory;
+        return strtolower($product['subcategory']) === strtolower($subcategory);
     });
 }
 
 if ($search) {
-    $filteredProducts = array_filter($filteredProducts, function($product) use ($search) {
-        $searchLower = strtolower($search);
-        return strpos(strtolower($product['name']), $searchLower) !== false ||
-               strpos(strtolower($product['description']), $searchLower) !== false ||
-               in_array($searchLower, array_map('strtolower', $product['tags'] ?? []));
+    // Use database search function for better performance
+    $filteredProducts = searchProducts($search);
+}
+
+// Apply price range filter if specified
+if ($priceRange) {
+    $filteredProducts = array_filter($filteredProducts, function($product) use ($priceRange) {
+        $price = $product['discount_price'] ?? $product['price'];
+        switch ($priceRange) {
+            case '0-25':
+                return $price < 25;
+            case '25-50':
+                return $price >= 25 && $price <= 50;
+            case '50-100':
+                return $price >= 50 && $price <= 100;
+            case 'over-100':
+                return $price > 100;
+            default:
+                return true;
+        }
     });
 }
 
@@ -41,11 +68,15 @@ if ($search) {
 usort($filteredProducts, function($a, $b) use ($sortBy) {
     switch ($sortBy) {
         case 'price_low':
-            return $a['price'] <=> $b['price'];
+            $priceA = $a['discount_price'] ?? $a['price'];
+            $priceB = $b['discount_price'] ?? $b['price'];
+            return $priceA <=> $priceB;
         case 'price_high':
-            return $b['price'] <=> $a['price'];
+            $priceA = $a['discount_price'] ?? $a['price'];
+            $priceB = $b['discount_price'] ?? $b['price'];
+            return $priceB <=> $priceA;
         case 'newest':
-            return ($b['newArrival'] ?? false) <=> ($a['newArrival'] ?? false);
+            return strtotime($b['created_at']) <=> strtotime($a['created_at']);
         default:
             return $a['name'] <=> $b['name'];
     }
@@ -79,21 +110,15 @@ include '../includes/header.php';
                 <div class="filter-section">
                     <h6>Category</h6>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="category" value="" id="cat-all" <?= empty($category) ? 'checked' : '' ?>>
+                        <input class="form-check-input" type="radio" name="category" value="" id="cat-all" <?= empty($categoryId) ? 'checked' : '' ?>>
                         <label class="form-check-label" for="cat-all">All Categories</label>
                     </div>
+                    <?php foreach ($categories as $cat): ?>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="category" value="girls" id="cat-girls" <?= $category === 'girls' ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="cat-girls">Girls</label>
+                        <input class="form-check-input" type="radio" name="category" value="<?= $cat['id'] ?>" id="cat-<?= $cat['id'] ?>" <?= $categoryId == $cat['id'] ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="cat-<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></label>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="category" value="boys" id="cat-boys" <?= $category === 'boys' ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="cat-boys">Boys</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="category" value="infants" id="cat-infants" <?= $category === 'infants' ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="cat-infants">Infants</label>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
                 
                 <!-- Price Range Filter -->
@@ -116,7 +141,7 @@ include '../includes/header.php';
                         <label class="form-check-label" for="price-3">€50 - €100</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="price" value="100+" id="price-4" <?= $priceRange === '100+' ? 'checked' : '' ?>>
+                        <input class="form-check-input" type="radio" name="price" value="over-100" id="price-4" <?= $priceRange === 'over-100' ? 'checked' : '' ?>>
                         <label class="form-check-label" for="price-4">Over €100</label>
                     </div>
                 </div>
@@ -160,15 +185,12 @@ include '../includes/header.php';
                             <div class="product-card">
                                 <div class="product-image">
                                     <a href="product-detail.php?id=<?= $product['id'] ?>">
-                                        <img src="<?= $product['images'][0] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
-                                        <?php if (isset($product['images'][1])): ?>
-                                            <img src="<?= $product['images'][1] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid hover-image">
-                                        <?php endif; ?>
+                                        <img src="<?= $product['primary_image'] ?: 'https://via.placeholder.com/300x300?text=No+Image' ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid">
                                     </a>
-                                    <?php if ($product['newArrival'] ?? false): ?>
-                                        <span class="badge bg-success position-absolute top-0 start-0 m-2">New</span>
+                                    <?php if ($product['is_featured']): ?>
+                                        <span class="badge bg-success position-absolute top-0 start-0 m-2">Featured</span>
                                     <?php endif; ?>
-                                    <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
+                                    <?php if ($product['discount_price'] && $product['discount_price'] < $product['price']): ?>
                                         <span class="badge bg-danger position-absolute top-0 end-0 m-2">Sale</span>
                                     <?php endif; ?>
                                     <div class="product-actions">
@@ -183,25 +205,16 @@ include '../includes/header.php';
                                         </a>
                                     </div>
                                 </div>
-                                <div class="product-info p-3">
-                                    <h6 class="product-title">
-                                        <a href="product-detail.php?id=<?= $product['id'] ?>" class="text-decoration-none">
-                                            <?= htmlspecialchars($product['name']) ?>
-                                        </a>
-                                    </h6>
+                                <div class="product-info">
+                                    <h6><a href="product-detail.php?id=<?= $product['id'] ?>"><?= htmlspecialchars($product['name']) ?></a></h6>
                                     <div class="product-price">
-                                        <span class="current-price"><?= formatPrice($product['price']) ?></span>
-                                        <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
-                                            <span class="original-price"><?= formatPrice($product['originalPrice']) ?></span>
+                                        <?php if ($product['discount_price'] && $product['discount_price'] < $product['price']): ?>
+                                            <span class="current-price"><?= formatPrice($product['discount_price']) ?></span>
+                                            <span class="original-price"><?= formatPrice($product['price']) ?></span>
+                                        <?php else: ?>
+                                            <span class="current-price"><?= formatPrice($product['price']) ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if (!empty($product['colors'])): ?>
-                                        <div class="color-options mt-2">
-                                            <?php foreach(array_slice($product['colors'], 0, 4) as $color): ?>
-                                                <span class="color-swatch" style="background-color: <?= strtolower($color) ?>;" title="<?= $color ?>"></span>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

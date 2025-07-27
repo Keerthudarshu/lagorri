@@ -2,7 +2,36 @@
 
 ## Project Structure
 
-The Lagorii Kids eCommerce website is now configured to use **PostgreSQL database** instead of JSON files.
+The AgoraCart eCommerce website is now configured to use **PostgreSQL database** instead of JSON files.
+
+## Quick Setup Instructions
+
+### Step 1: Set Environment Variables
+Run one of these setup scripts to configure your PostgreSQL connection:
+
+**Windows Command Prompt:**
+```cmd
+setup_env.bat
+```
+
+**PowerShell:**
+```powershell
+.\setup_env.ps1
+```
+
+**Manual Setup (PowerShell):**
+```powershell
+$env:PGHOST="localhost"
+$env:PGPORT="5432"
+$env:PGDATABASE="agoracart"
+$env:PGUSER="postgres"
+$env:PGPASSWORD="your_password"
+```
+
+### Step 2: Setup Database
+1. Start your PHP server: `php -S localhost:5000`
+2. Open your browser and go to: `http://localhost:5000/database_setup.php`
+3. Click "Setup Database Tables & Data"
 
 ## Database Connection
 

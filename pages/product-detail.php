@@ -7,16 +7,8 @@ if (!$productId) {
     exit;
 }
 
-// Load product data
-$products = loadJsonData('products.json');
-$product = null;
-
-foreach ($products as $p) {
-    if ($p['id'] === $productId) {
-        $product = $p;
-        break;
-    }
-}
+// Load product data from database
+$product = getProductById($productId);
 
 if (!$product) {
     header('Location: products.php');
@@ -25,11 +17,18 @@ if (!$product) {
 
 $pageTitle = $product['name'];
 
-// Get related products (same category)
-$relatedProducts = array_filter($products, function($p) use ($product) {
-    return $p['category'] === $product['category'] && $p['id'] !== $product['id'];
-});
-$relatedProducts = array_slice($relatedProducts, 0, 4);
+// Get related products from the same category
+$relatedProducts = getProducts($product['category_id'], 4);
+
+// Get category name for breadcrumb
+$categories = getCategories();
+$categoryName = '';
+foreach ($categories as $cat) {
+    if ($cat['id'] == $product['category_id']) {
+        $categoryName = $cat['name'];
+        break;
+    }
+}
 
 include '../includes/header.php';
 ?>
@@ -40,7 +39,7 @@ include '../includes/header.php';
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="../index.php">Home</a></li>
             <li class="breadcrumb-item"><a href="products.php">Products</a></li>
-            <li class="breadcrumb-item"><a href="products.php?category=<?= $product['category'] ?>"><?= ucfirst($product['category']) ?></a></li>
+            <li class="breadcrumb-item"><a href="products.php?category=<?= $product['category_id'] ?>"><?= htmlspecialchars($categoryName) ?></a></li>
             <li class="breadcrumb-item active"><?= htmlspecialchars($product['name']) ?></li>
         </ol>
     </nav>
@@ -50,18 +49,18 @@ include '../includes/header.php';
         <div class="col-lg-6 mb-4">
             <div class="product-images">
                 <div class="main-image mb-3">
-                    <img src="<?= $product['images'][0] ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid rounded" id="mainImage">
-                    <?php if ($product['newArrival'] ?? false): ?>
-                        <span class="badge bg-success position-absolute top-0 start-0 m-3">New Arrival</span>
+                    <img src="<?= !empty($product['images']) ? $product['images'][0] : 'https://via.placeholder.com/500x500?text=No+Image' ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="img-fluid rounded" id="mainImage">
+                    <?php if ($product['is_featured']): ?>
+                        <span class="badge bg-success position-absolute top-0 start-0 m-3">Featured</span>
                     <?php endif; ?>
-                    <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
+                    <?php if ($product['discount_price'] && $product['discount_price'] < $product['price']): ?>
                         <span class="badge bg-danger position-absolute top-0 end-0 m-3">
-                            <?= round((($product['originalPrice'] - $product['price']) / $product['originalPrice']) * 100) ?>% OFF
+                            <?= round((($product['price'] - $product['discount_price']) / $product['price']) * 100) ?>% OFF
                         </span>
                     <?php endif; ?>
                 </div>
                 
-                <?php if (count($product['images']) > 1): ?>
+                <?php if (!empty($product['images']) && count($product['images']) > 1): ?>
                     <div class="thumbnail-images">
                         <div class="row g-2">
                             <?php foreach ($product['images'] as $index => $image): ?>
@@ -83,12 +82,14 @@ include '../includes/header.php';
                 <h1 class="product-title mb-3"><?= htmlspecialchars($product['name']) ?></h1>
                 
                 <div class="product-price mb-4">
-                    <span class="current-price h3 text-primary"><?= formatPrice($product['price']) ?></span>
-                    <?php if (isset($product['originalPrice']) && $product['originalPrice'] > $product['price']): ?>
-                        <span class="original-price h5 text-muted text-decoration-line-through ms-2"><?= formatPrice($product['originalPrice']) ?></span>
+                    <?php if ($product['discount_price'] && $product['discount_price'] < $product['price']): ?>
+                        <span class="current-price h3 text-primary"><?= formatPrice($product['discount_price']) ?></span>
+                        <span class="original-price h5 text-muted text-decoration-line-through ms-2"><?= formatPrice($product['price']) ?></span>
                         <span class="badge bg-success ms-2">
-                            Save <?= formatPrice($product['originalPrice'] - $product['price']) ?>
+                            Save <?= formatPrice($product['price'] - $product['discount_price']) ?>
                         </span>
+                    <?php else: ?>
+                        <span class="current-price h3 text-primary"><?= formatPrice($product['price']) ?></span>
                     <?php endif; ?>
                 </div>
                 
@@ -239,7 +240,7 @@ include '../includes/header.php';
                             <div class="product-card">
                                 <div class="product-image">
                                     <a href="product-detail.php?id=<?= $relatedProduct['id'] ?>">
-                                        <img src="<?= $relatedProduct['images'][0] ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="img-fluid">
+                                        <img src="<?= $relatedProduct['primary_image'] ?: 'https://via.placeholder.com/300x300?text=No+Image' ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="img-fluid">
                                     </a>
                                     <div class="product-actions">
                                         <button class="btn btn-primary btn-sm add-to-cart" data-product-id="<?= $relatedProduct['id'] ?>">
@@ -340,9 +341,62 @@ document.querySelector('.add-to-cart-detail').addEventListener('click', function
     }
     <?php endif; ?>
     
-    // Add to cart
-    addToCart(productId, quantity, { size, color });
+    // Prepare options
+    const options = {};
+    if (size) options.size = size;
+    if (color) options.color = color;
+    
+    // Add to cart using the cart system
+    if (window.cart) {
+        window.cart.addItem(productId, quantity, options);
+    } else {
+        // Fallback to manual cart management
+        const cart = getCartFromStorage();
+        
+        // Check if item already exists
+        const existingItemIndex = cart.findIndex(item => 
+            item.productId === productId && 
+            JSON.stringify(item.options) === JSON.stringify(options)
+        );
+        
+        if (existingItemIndex >= 0) {
+            cart[existingItemIndex].quantity += quantity;
+        } else {
+            cart.push({
+                productId: productId,
+                quantity: quantity,
+                options: options,
+                addedAt: new Date().toISOString()
+            });
+        }
+        
+        localStorage.setItem('lagorii_cart', JSON.stringify(cart));
+        updateCartCountManual();
+        
+        // Show success message
+        alert('Item added to cart!');
+    }
 });
+
+function getCartFromStorage() {
+    try {
+        const cartStr = localStorage.getItem('lagorii_cart');
+        return cartStr ? JSON.parse(cartStr) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function updateCartCountManual() {
+    const cart = getCartFromStorage();
+    const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+    
+    const cartCountElement = document.getElementById('cartCount');
+    if (cartCountElement) {
+        cartCountElement.textContent = count;
+        cartCountElement.style.display = count > 0 ? 'inline' : 'none';
+    }
+}
 </script>
 
 <?php include '../includes/footer.php'; ?>

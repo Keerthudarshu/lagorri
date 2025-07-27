@@ -110,43 +110,6 @@ include '../includes/header.php';
     </div>
 </div>
 
-<!-- Cart Item Template -->
-<template id="cartItemTemplate">
-    <div class="cart-item">
-        <div class="card mb-3">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-2">
-                        <img src="" alt="" class="img-fluid rounded cart-item-image">
-                    </div>
-                    <div class="col-md-4">
-                        <h6 class="cart-item-name mb-1"></h6>
-                        <div class="cart-item-options">
-                            <small class="text-muted cart-item-size"></small>
-                            <small class="text-muted cart-item-color"></small>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="input-group">
-                            <button class="btn btn-outline-secondary btn-sm quantity-decrease" type="button">-</button>
-                            <input type="number" class="form-control form-control-sm text-center cart-item-quantity" min="1" max="10">
-                            <button class="btn btn-outline-secondary btn-sm quantity-increase" type="button">+</button>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <span class="cart-item-price h6"></span>
-                    </div>
-                    <div class="col-md-2 text-end">
-                        <button class="btn btn-outline-danger btn-sm remove-item">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     loadCartItems();
@@ -164,7 +127,10 @@ function loadCartItems() {
     const cart = getCart();
     const container = document.getElementById('cartItemsContainer');
     
+    console.log('Cart: Loading cart items...', cart);
+    
     if (cart.length === 0) {
+        console.log('Cart: Cart is empty');
         container.innerHTML = `
             <div class="empty-cart text-center py-5">
                 <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
@@ -173,76 +139,178 @@ function loadCartItems() {
                 <a href="products.php" class="btn btn-primary">Continue Shopping</a>
             </div>
         `;
+        updateCartSummary([], []);
         document.getElementById('proceedToCheckout').disabled = true;
         return;
     }
     
+    console.log('Cart: Found', cart.length, 'items in cart, fetching product data...');
+    
     // Load product data for cart items
     fetch('../api/products.php')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(products => {
+            console.log('Cart: Loaded products from API:', products.length);
             renderCartItems(cart, products);
             updateCartSummary(cart, products);
             document.getElementById('proceedToCheckout').disabled = false;
         })
         .catch(error => {
             console.error('Error loading products:', error);
+            // Show error message to user
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Error Loading Cart Items</h5>
+                    <p>There was a problem loading your cart items. Please refresh the page.</p>
+                    <small>Error: ${error.message}</small>
+                </div>
+            `;
         });
 }
 
 function renderCartItems(cart, products) {
     const container = document.getElementById('cartItemsContainer');
-    const template = document.getElementById('cartItemTemplate');
+    
+    console.log('Cart: Rendering cart items...', { cartItems: cart.length, products: products.length });
     
     container.innerHTML = '';
     
-    cart.forEach(cartItem => {
-        const product = products.find(p => p.id === cartItem.productId);
-        if (!product) return;
+    cart.forEach((cartItem, index) => {
+        console.log(`Cart: Processing cart item ${index + 1}:`, cartItem);
         
-        const itemElement = template.content.cloneNode(true);
-        
-        // Populate item data
-        itemElement.querySelector('.cart-item-image').src = product.images[0];
-        itemElement.querySelector('.cart-item-image').alt = product.name;
-        itemElement.querySelector('.cart-item-name').textContent = product.name;
-        itemElement.querySelector('.cart-item-quantity').value = cartItem.quantity;
-        itemElement.querySelector('.cart-item-price').textContent = formatPrice(product.price * cartItem.quantity);
-        
-        // Set options
-        if (cartItem.options.size) {
-            itemElement.querySelector('.cart-item-size').textContent = `Size: ${cartItem.options.size}`;
+        const product = products.find(p => p.id == cartItem.productId);
+        if (!product) {
+            console.warn(`Cart: Product not found for ID: ${cartItem.productId}`);
+            // Show a placeholder for missing product
+            const missingElement = document.createElement('div');
+            missingElement.className = 'cart-item';
+            missingElement.innerHTML = `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="alert alert-warning">
+                            <strong>Product not found</strong><br>
+                            Product ID: ${cartItem.productId}<br>
+                            <button class="btn btn-sm btn-danger mt-2" onclick="removeCartItem('${cartItem.productId}')">
+                                Remove from cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(missingElement);
+            return;
         }
-        if (cartItem.options.color) {
-            itemElement.querySelector('.cart-item-color').textContent = ` | Color: ${cartItem.options.color}`;
-        }
         
-        // Add event listeners
-        const decreaseBtn = itemElement.querySelector('.quantity-decrease');
-        const increaseBtn = itemElement.querySelector('.quantity-increase');
-        const quantityInput = itemElement.querySelector('.cart-item-quantity');
-        const removeBtn = itemElement.querySelector('.remove-item');
+        const totalPrice = product.price * cartItem.quantity;
         
-        decreaseBtn.addEventListener('click', () => {
-            updateCartItemQuantity(cartItem.productId, Math.max(1, cartItem.quantity - 1));
-        });
+        console.log(`Cart: Rendering product: ${product.name}, Price: ${product.price}, Quantity: ${cartItem.quantity}`);
         
-        increaseBtn.addEventListener('click', () => {
-            updateCartItemQuantity(cartItem.productId, Math.min(10, cartItem.quantity + 1));
-        });
-        
-        quantityInput.addEventListener('change', (e) => {
-            const newQuantity = parseInt(e.target.value);
-            if (newQuantity >= 1 && newQuantity <= 10) {
-                updateCartItemQuantity(cartItem.productId, newQuantity);
-            }
-        });
-        
-        removeBtn.addEventListener('click', () => {
-            removeFromCart(cartItem.productId);
-        });
+        const itemElement = document.createElement('div');
+        itemElement.className = 'cart-item';
+        itemElement.dataset.productId = cartItem.productId;
+        itemElement.innerHTML = `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2">
+                            <img src="${product.images && product.images[0] ? product.images[0] : 'https://via.placeholder.com/80x80?text=No+Image'}" 
+                                 alt="${product.name}" 
+                                 class="img-fluid rounded cart-item-image"
+                                 style="width: 80px; height: 80px; object-fit: cover;">
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="mb-1">${product.name}</h6>
+                            <div class="cart-item-options">
+                                ${cartItem.options && cartItem.options.size ? `<small class="text-muted">Size: ${cartItem.options.size}</small>` : ''}
+                                ${cartItem.options && cartItem.options.color ? `<small class="text-muted"> | Color: ${cartItem.options.color}</small>` : ''}
+                            </div>
+                            <small class="text-muted">€${product.price} each</small>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary btn-sm quantity-decrease" 
+                                        type="button" data-action="decrease">-</button>
+                                <input type="number" class="form-control form-control-sm text-center cart-item-quantity" 
+                                       value="${cartItem.quantity}" min="1" max="10" 
+                                       data-product-id="${cartItem.productId}">
+                                <button class="btn btn-outline-secondary btn-sm quantity-increase" 
+                                        type="button" data-action="increase">+</button>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="cart-item-price h6">€${Math.round(totalPrice)}</span>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-outline-danger btn-sm remove-item" 
+                                    data-product-id="${cartItem.productId}"
+                                    title="Remove item">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         
         container.appendChild(itemElement);
+    });
+    
+    console.log('Cart: Finished rendering cart items, binding events...');
+    // Add event listeners for cart controls
+    bindCartEvents();
+}
+
+function bindCartEvents() {
+    // Quantity controls
+    document.querySelectorAll('.quantity-decrease, .quantity-increase').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const cartItem = e.target.closest('.cart-item');
+            const productId = cartItem.dataset.productId;
+            const quantityInput = cartItem.querySelector('.cart-item-quantity');
+            const currentQuantity = parseInt(quantityInput.value);
+            const action = e.target.dataset.action;
+            
+            let newQuantity = currentQuantity;
+            if (action === 'decrease' && currentQuantity > 1) {
+                newQuantity = currentQuantity - 1;
+            } else if (action === 'increase' && currentQuantity < 10) {
+                newQuantity = currentQuantity + 1;
+            }
+            
+            if (newQuantity !== currentQuantity) {
+                updateCartItemQuantity(productId, newQuantity);
+            }
+        });
+    });
+    
+    // Quantity input changes
+    document.querySelectorAll('.cart-item-quantity').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const productId = e.target.dataset.productId;
+            const quantity = parseInt(e.target.value);
+            
+            if (quantity >= 1 && quantity <= 10) {
+                updateCartItemQuantity(productId, quantity);
+            } else {
+                e.target.value = Math.min(Math.max(quantity, 1), 10);
+            }
+        });
+    });
+    
+    // Remove item buttons
+    document.querySelectorAll('.remove-item').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const productId = e.target.closest('[data-product-id]').dataset.productId;
+            
+            if (confirm('Are you sure you want to remove this item from your cart?')) {
+                removeCartItem(productId);
+            }
+        });
     });
 }
 
@@ -258,15 +326,58 @@ function updateCartItemQuantity(productId, quantity) {
     }
 }
 
+function removeCartItem(productId) {
+    let cart = getCart();
+    cart = cart.filter(item => item.productId !== productId);
+    saveCart(cart);
+    loadCartItems(); // Reload cart display
+    updateCartCount();
+    
+    // Show toast notification
+    if (window.LagoriiApp && window.LagoriiApp.showToast) {
+        window.LagoriiApp.showToast('Item removed from cart');
+    }
+}
+
+function getCart() {
+    try {
+        const cartStr = localStorage.getItem('lagorii_cart');
+        return cartStr ? JSON.parse(cartStr) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveCart(cart) {
+    localStorage.setItem('lagorii_cart', JSON.stringify(cart));
+    updateCartCount();
+}
+
+function getCartItemCount() {
+    const cart = getCart();
+    return cart.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+function updateCartCount() {
+    const count = getCartItemCount();
+    const cartCountElement = document.getElementById('cartCount');
+    if (cartCountElement) {
+        cartCountElement.textContent = count;
+        cartCountElement.style.display = count > 0 ? 'inline' : 'none';
+    }
+}
+
 function updateCartSummary(cart, products) {
     let subtotal = 0;
     
-    cart.forEach(cartItem => {
-        const product = products.find(p => p.id === cartItem.productId);
-        if (product) {
-            subtotal += product.price * cartItem.quantity;
-        }
-    });
+    if (products && products.length > 0) {
+        cart.forEach(cartItem => {
+            const product = products.find(p => p.id === cartItem.productId);
+            if (product) {
+                subtotal += product.price * cartItem.quantity;
+            }
+        });
+    }
     
     // Calculate discount based on quantity
     let discount = 0;
@@ -288,6 +399,12 @@ function updateCartSummary(cart, products) {
         document.getElementById('discountRow').style.display = 'flex';
     } else {
         document.getElementById('discountRow').style.display = 'none';
+    }
+    
+    // Enable/disable checkout button
+    const checkoutBtn = document.getElementById('proceedToCheckout');
+    if (checkoutBtn) {
+        checkoutBtn.disabled = cart.length === 0;
     }
 }
 
@@ -339,7 +456,29 @@ function renderRecommendedProducts(products) {
     // Add event listeners for add to cart buttons
     container.querySelectorAll('.add-to-cart').forEach(button => {
         button.addEventListener('click', function() {
-            addToCart(this.dataset.productId, 1);
+            const productId = this.dataset.productId;
+            const cart = getCart();
+            
+            // Check if item already exists
+            const existingItemIndex = cart.findIndex(item => item.productId === productId);
+            
+            if (existingItemIndex >= 0) {
+                cart[existingItemIndex].quantity += 1;
+            } else {
+                cart.push({
+                    productId: productId,
+                    quantity: 1,
+                    options: {},
+                    addedAt: new Date().toISOString()
+                });
+            }
+            
+            saveCart(cart);
+            
+            // Show success message
+            if (window.LagoriiApp && window.LagoriiApp.showToast) {
+                window.LagoriiApp.showToast('Item added to cart!');
+            }
         });
     });
 }

@@ -72,7 +72,7 @@ include 'includes/header.php';
             <?php foreach($categories as $category): ?>
                 <div class="col-lg-4 col-md-6">
                     <div class="category-card">
-                        <a href="pages/products.php?category=<?= $category['slug'] ?>">
+                        <a href="pages/products.php?category=<?= $category['id'] ?>">
                             <div class="category-image">
                                 <img src="<?= $category['image_url'] ?>" alt="<?= $category['name'] ?>" class="img-fluid">
                                 <div class="category-overlay">

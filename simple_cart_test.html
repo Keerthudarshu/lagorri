@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Cart Test</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>Simple Cart Test</h1>
+    
+    <p>Cart Count: <span id="cartCount">0</span></p>
+    
+    <button onclick="addTestItem()">Add Item to Cart</button>
+    <button onclick="viewCart()">View Cart</button>
+    <button onclick="clearTestCart()">Clear Cart</button>
+    
+    <div>
+        <h3>Test like homepage:</h3>
+        <button class="add-to-cart" data-product-id="1">Add Product 1</button>
+        <button class="add-to-cart" data-product-id="2">Add Product 2</button>
+    </div>
+    
+    <pre id="cartContents"></pre>
+    
+    <script>
+        // Simple cart functions
+        function getCartData() {
+            const data = localStorage.getItem('lagorii_cart');
+            return data ? JSON.parse(data) : [];
+        }
+        
+        function saveCartData(cart) {
+            localStorage.setItem('lagorii_cart', JSON.stringify(cart));
+            updateCartDisplay();
+        }
+        
+        function addTestItem() {
+            const cart = getCartData();
+            const testItem = {
+                productId: 'test-' + Date.now(),
+                quantity: 1,
+                options: {},
+                addedAt: new Date().toISOString()
+            };
+            cart.push(testItem);
+            saveCartData(cart);
+            console.log('Added test item:', testItem);
+        }
+        
+        function clearTestCart() {
+            localStorage.removeItem('lagorii_cart');
+            updateCartDisplay();
+        }
+        
+        function viewCart() {
+            const cart = getCartData();
+            console.log('Current cart:', cart);
+            updateCartDisplay();
+        }
+        
+        function updateCartDisplay() {
+            const cart = getCartData();
+            const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+            
+            document.getElementById('cartCount').textContent = count;
+            document.getElementById('cartContents').textContent = JSON.stringify(cart, null, 2);
+        }
+        
+        // Simulate homepage functionality
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('add-to-cart')) {
+                e.preventDefault();
+                const productId = e.target.getAttribute('data-product-id');
+                console.log('Adding product:', productId);
+                
+                const cart = getCartData();
+                const existingIndex = cart.findIndex(item => item.productId === productId);
+                
+                if (existingIndex >= 0) {
+                    cart[existingIndex].quantity += 1;
+                    console.log('Updated quantity for existing item');
+                } else {
+                    cart.push({
+                        productId: productId,
+                        quantity: 1,
+                        options: {},
+                        addedAt: new Date().toISOString()
+                    });
+                    console.log('Added new item');
+                }
+                
+                saveCartData(cart);
+            }
+        });
+        
+        // Initial display
+        updateCartDisplay();
+    </script>
+</body>
+</html>

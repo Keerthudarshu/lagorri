@@ -16,11 +16,11 @@
                         Girls
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="pages/products.php?category=girls&subcategory=party-wear">Party Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=girls&subcategory=casual-wear">Casual Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=girls&subcategory=ethnic-wear">Ethnic Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=girls&subcategory=frocks">Frocks</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=girls&subcategory=gowns">Gowns</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=1&subcategory=party-wear">Party Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=1&subcategory=casual-wear">Casual Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=1&subcategory=ethnic-wear">Ethnic Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=1&subcategory=frocks">Frocks</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=1&subcategory=gowns">Gowns</a></li>
                     </ul>
                 </li>
                 <li class="nav-item dropdown">
@@ -28,15 +28,15 @@
                         Boys
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="pages/products.php?category=boys&subcategory=party-wear">Party Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=boys&subcategory=casual-wear">Casual Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=boys&subcategory=ethnic-wear">Ethnic Wear</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=boys&subcategory=kurta-sets">Kurta Sets</a></li>
-                        <li><a class="dropdown-item" href="pages/products.php?category=boys&subcategory=suits">Suits</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=2&subcategory=party-wear">Party Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=2&subcategory=casual-wear">Casual Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=2&subcategory=ethnic-wear">Ethnic Wear</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=2&subcategory=kurta-sets">Kurta Sets</a></li>
+                        <li><a class="dropdown-item" href="pages/products.php?category=2&subcategory=suits">Suits</a></li>
                     </ul>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="pages/products.php?category=infants">Infants</a>
+                    <a class="nav-link" href="pages/products.php?category=3">Infants</a>
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">

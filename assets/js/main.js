@@ -8,9 +8,14 @@ function initializeApp() {
     // Initialize all components
     initializeNavigation();
     initializeSearch();
-    initializeProductCards();
-    initializeAuth();
+    
+    // Initialize cart count first
     updateCartCount();
+    
+    // Initialize product cards after a short delay to ensure cart system is loaded
+    setTimeout(() => {
+        initializeProductCards();
+    }, 100);
     
     // Smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -153,21 +158,7 @@ function hideSearchSuggestions() {
 function initializeProductCards() {
     // Add hover effects and interactions to product cards
     document.querySelectorAll('.product-card').forEach(card => {
-        // Add to cart functionality
-        const addToCartBtn = card.querySelector('.add-to-cart');
-        if (addToCartBtn) {
-            addToCartBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const productId = this.dataset.productId;
-                if (productId) {
-                    addToCart(productId, 1);
-                }
-            });
-        }
-        
-        // Wishlist functionality
+        // Wishlist functionality only - cart functionality is handled by cart.js
         const wishlistBtn = card.querySelector('.btn-outline-primary:not(.add-to-cart)');
         if (wishlistBtn && wishlistBtn.innerHTML.includes('heart')) {
             wishlistBtn.addEventListener('click', function(e) {
@@ -192,94 +183,8 @@ function initializeProductCards() {
             });
         }
     });
-}
-
-function initializeAuth() {
-    // Check if user is logged in
-    const user = getCurrentUser();
-    const authLink = document.getElementById('authLink');
     
-    if (user && authLink) {
-        authLink.innerHTML = `<i class="fas fa-user"></i> ${user.name}`;
-        authLink.href = '#';
-        
-        // Add dropdown for user menu
-        authLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            showUserMenu();
-        });
-    }
-}
-
-function showUserMenu() {
-    // Create user dropdown menu
-    let userMenu = document.getElementById('userMenu');
-    
-    if (!userMenu) {
-        userMenu = document.createElement('div');
-        userMenu.id = 'userMenu';
-        userMenu.className = 'user-menu position-absolute bg-white border rounded shadow-sm';
-        userMenu.style.cssText = `
-            top: 100%;
-            right: 0;
-            min-width: 200px;
-            z-index: 1000;
-            display: none;
-        `;
-        
-        userMenu.innerHTML = `
-            <div class="p-2">
-                <a href="#" class="dropdown-item">My Account</a>
-                <a href="#" class="dropdown-item">Order History</a>
-                <a href="#" class="dropdown-item">Wishlist</a>
-                <div class="dropdown-divider"></div>
-                <a href="#" class="dropdown-item" onclick="logout()">Sign Out</a>
-            </div>
-        `;
-        
-        document.getElementById('authLink').parentNode.style.position = 'relative';
-        document.getElementById('authLink').parentNode.appendChild(userMenu);
-    }
-    
-    userMenu.style.display = userMenu.style.display === 'block' ? 'none' : 'block';
-    
-    // Close menu when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!userMenu.contains(e.target) && !document.getElementById('authLink').contains(e.target)) {
-            userMenu.style.display = 'none';
-        }
-    });
-}
-
-function getCurrentUser() {
-    try {
-        const userStr = localStorage.getItem('user');
-        return userStr ? JSON.parse(userStr) : null;
-    } catch (e) {
-        return null;
-    }
-}
-
-function logout() {
-    fetch('api/auth.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            action: 'logout'
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        localStorage.removeItem('user');
-        window.location.reload();
-    })
-    .catch(error => {
-        console.error('Logout error:', error);
-        localStorage.removeItem('user');
-        window.location.reload();
-    });
+    // Note: Add to cart functionality is handled by cart.js to prevent conflicts
 }
 
 function updateCartCount() {
@@ -295,7 +200,7 @@ function updateCartCount() {
 
 function getCart() {
     try {
-        const cartStr = localStorage.getItem('cart');
+        const cartStr = localStorage.getItem('lagorii_cart');
         return cartStr ? JSON.parse(cartStr) : [];
     } catch (e) {
         return [];
@@ -303,10 +208,19 @@ function getCart() {
 }
 
 function saveCart(cart) {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    localStorage.setItem('lagorii_cart', JSON.stringify(cart));
+    updateCartCount(); // Update cart count after saving
 }
 
 function addToCart(productId, quantity = 1, options = {}) {
+    // Use the global cart instance if available, otherwise use localStorage directly
+    if (window.cart) {
+        console.log('Using cart instance to add product:', productId);
+        window.cart.addItem(productId, quantity, options);
+        return;
+    }
+    
+    console.log('Using fallback cart method for product:', productId);
     const cart = getCart();
     
     // Check if item already exists
@@ -317,13 +231,16 @@ function addToCart(productId, quantity = 1, options = {}) {
     
     if (existingItemIndex >= 0) {
         cart[existingItemIndex].quantity += quantity;
+        console.log('Updated existing item quantity:', cart[existingItemIndex].quantity);
     } else {
-        cart.push({
+        const newItem = {
             productId: productId,
             quantity: quantity,
             options: options,
             addedAt: new Date().toISOString()
-        });
+        };
+        cart.push(newItem);
+        console.log('Added new item to cart:', newItem);
     }
     
     saveCart(cart);
@@ -337,6 +254,12 @@ function addToCart(productId, quantity = 1, options = {}) {
 }
 
 function removeFromCart(productId) {
+    // Use the global cart instance if available, otherwise use localStorage directly
+    if (window.cart) {
+        window.cart.removeItem(productId);
+        return;
+    }
+    
     let cart = getCart();
     cart = cart.filter(item => item.productId !== productId);
     saveCart(cart);

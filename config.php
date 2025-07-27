@@ -1,35 +1,12 @@
 <?php
 session_start();
 
-// Database configuration - PostgreSQL
-try {
-    $database_url = getenv('DATABASE_URL');
-    if ($database_url) {
-        $db_parts = parse_url($database_url);
-        define('DB_HOST', $db_parts['host']);
-        define('DB_PORT', isset($db_parts['port']) ? $db_parts['port'] : 5432);
-        define('DB_NAME', ltrim($db_parts['path'], '/'));
-        define('DB_USER', $db_parts['user']);
-        define('DB_PASS', $db_parts['pass']);
-    } else {
-        // Fallback to individual environment variables
-        define('DB_HOST', getenv('PGHOST') ?: 'localhost');
-        define('DB_PORT', getenv('PGPORT') ?: 5432);
-        define('DB_NAME', getenv('PGDATABASE') ?: 'lagorii_kids');
-        define('DB_USER', getenv('PGUSER') ?: 'postgres');
-        define('DB_PASS', getenv('PGPASSWORD') ?: '');
-    }
-} catch (Exception $e) {
-    error_log("Database configuration error: " . $e->getMessage());
-    // Use individual environment variables as fallback
-    if (!defined('DB_HOST')) {
-        define('DB_HOST', getenv('PGHOST') ?: 'localhost');
-        define('DB_PORT', getenv('PGPORT') ?: 5432);
-        define('DB_NAME', getenv('PGDATABASE') ?: 'lagorii_kids');
-        define('DB_USER', getenv('PGUSER') ?: 'postgres');
-        define('DB_PASS', getenv('PGPASSWORD') ?: '');
-    }
-}
+// Database configuration - MySQL (XAMPP compatible)
+define('DB_HOST', 'localhost');
+define('DB_PORT', 3306);
+define('DB_NAME', 'agoracart');
+define('DB_USER', 'root');
+define('DB_PASS', '');
 
 define('BASE_URL', '/');
 
@@ -53,15 +30,15 @@ function getDbConnection() {
     
     if ($pdo === null) {
         try {
-            // Use individual environment variables (works with Neon PostgreSQL)
+            // MySQL connection for XAMPP
             $dsn = sprintf(
-                "pgsql:host=%s;port=%s;dbname=%s;sslmode=require",
-                getenv('PGHOST'),
-                getenv('PGPORT'),
-                getenv('PGDATABASE')
+                "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
+                DB_HOST,
+                DB_PORT,
+                DB_NAME
             );
             
-            $pdo = new PDO($dsn, getenv('PGUSER'), getenv('PGPASSWORD'), [
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
@@ -81,8 +58,8 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
     
     $sql = "SELECT p.*, pi.image_url as primary_image 
             FROM products p 
-            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
-            WHERE p.is_active = true";
+            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = 1 
+            WHERE p.is_active = 1";
     
     $params = [];
     
@@ -92,7 +69,7 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
     }
     
     if ($featured) {
-        $sql .= " AND p.is_featured = true";
+        $sql .= " AND p.is_featured = 1";
     }
     
     $sql .= " ORDER BY p.created_at DESC";
@@ -113,13 +90,13 @@ function getProductById($id) {
     
     $stmt = $pdo->prepare("
         SELECT p.*, 
-               ARRAY_AGG(DISTINCT pi.image_url) as images,
-               ARRAY_AGG(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END) as sizes,
-               ARRAY_AGG(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END) as colors
+               GROUP_CONCAT(DISTINCT pi.image_url) as images,
+               GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END) as sizes,
+               GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END) as colors
         FROM products p 
         LEFT JOIN product_images pi ON p.id = pi.product_id
         LEFT JOIN product_attributes pa ON p.id = pa.product_id
-        WHERE p.id = ? AND p.is_active = true
+        WHERE p.id = ? AND p.is_active = 1
         GROUP BY p.id
     ");
     
@@ -127,10 +104,10 @@ function getProductById($id) {
     $product = $stmt->fetch();
     
     if ($product) {
-        // Clean up arrays (remove nulls)
-        $product['images'] = array_filter($product['images']);
-        $product['sizes'] = array_filter($product['sizes']);
-        $product['colors'] = array_filter($product['colors']);
+        // Convert comma-separated strings to arrays
+        $product['images'] = $product['images'] ? explode(',', $product['images']) : [];
+        $product['sizes'] = $product['sizes'] ? explode(',', $product['sizes']) : [];
+        $product['colors'] = $product['colors'] ? explode(',', $product['colors']) : [];
     }
     
     return $product;
@@ -139,7 +116,7 @@ function getProductById($id) {
 function getCategories() {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = true ORDER BY name");
+    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = 1 ORDER BY name");
     $stmt->execute();
     
     return $stmt->fetchAll();
@@ -151,9 +128,9 @@ function searchProducts($query, $limit = 20) {
     $stmt = $pdo->prepare("
         SELECT p.*, pi.image_url as primary_image 
         FROM products p 
-        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
-        WHERE p.is_active = true 
-        AND (p.name ILIKE ? OR p.description ILIKE ? OR p.subcategory ILIKE ?)
+        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = 1 
+        WHERE p.is_active = 1 
+        AND (p.name LIKE ? OR p.description LIKE ? OR p.subcategory LIKE ?)
         ORDER BY p.name
         LIMIT ?
     ");
@@ -176,7 +153,7 @@ function generateOrderNumber() {
 function authenticateUser($email, $password) {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = true");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = 1");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     
@@ -207,8 +184,7 @@ function createUser($userData) {
     // Create new user
     $stmt = $pdo->prepare("
         INSERT INTO users (first_name, last_name, email, password_hash, phone) 
-        VALUES (?, ?, ?, ?, ?) 
-        RETURNING id, first_name, last_name, email, phone
+        VALUES (?, ?, ?, ?, ?)
     ");
     
     $passwordHash = password_hash($userData['password'], PASSWORD_DEFAULT);
@@ -221,6 +197,11 @@ function createUser($userData) {
         $userData['phone'] ?? null
     ]);
     
+    $userId = $pdo->lastInsertId();
+    
+    // Get the created user
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
     $user = $stmt->fetch();
     
     return [
@@ -238,5 +219,14 @@ try {
     getDbConnection();
 } catch (Exception $e) {
     error_log("Failed to initialize database connection: " . $e->getMessage());
+}
+
+// Helper function to get base path for assets
+function getBasePath() {
+    $currentPath = $_SERVER['REQUEST_URI'];
+    if (strpos($currentPath, '/pages/') !== false) {
+        return '../';
+    }
+    return '';
 }
 ?>
