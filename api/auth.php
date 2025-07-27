@@ -174,45 +174,7 @@ function handleLogout() {
     }
 }
 
-function authenticateUser($email, $password) {
-    
-    // Load users
-    $users = loadJsonData('users.json');
-    
-    // Find user
-    $user = null;
-    $userIndex = -1;
-    foreach ($users as $index => $u) {
-        if ($u['email'] === $email) {
-            $user = $u;
-            $userIndex = $index;
-            break;
-        }
-    }
-    
-    if (!$user || !password_verify($password, $user['password'])) {
-        throw new Exception('Invalid email or password');
-    }
-    
-    // Update last login
-    $users[$userIndex]['last_login'] = date('Y-m-d H:i:s');
-    saveJsonData('users.json', $users);
-    
-    // Set session
-    $_SESSION['user_id'] = $user['id'];
-    $_SESSION['user_email'] = $user['email'];
-    $_SESSION['user_name'] = $user['firstName'] . ' ' . $user['lastName'];
-    
-    return [
-        'success' => true,
-        'message' => 'Login successful',
-        'user' => [
-            'id' => $user['id'],
-            'email' => $user['email'],
-            'name' => $user['firstName'] . ' ' . $user['lastName']
-        ]
-    ];
-}
+// This function is replaced by the one in config.php - removing duplicate
 
 function logoutUser() {
     session_destroy();
@@ -262,9 +224,29 @@ function sendEmailOTP($data) {
     }
     
     $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
-    $_SESSION['email_otp'] = $otp;
-    $_SESSION['email_otp_email'] = $email;
-    $_SESSION['email_otp_time'] = time();
+    
+    // Store OTP in database
+    try {
+        $pdo = getDbConnection();
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+        
+        // Delete any existing OTP for this email
+        $stmt = $pdo->prepare("DELETE FROM user_otp_verification WHERE email = ?");
+        $stmt->execute([$email]);
+        
+        // Insert new OTP
+        $stmt = $pdo->prepare("INSERT INTO user_otp_verification (email, email_otp, email_otp_expires_at) VALUES (?, ?, ?)");
+        $stmt->execute([$email, $otp, $expiresAt]);
+        
+        // Store in session as backup
+        $_SESSION['email_otp'] = $otp;
+        $_SESSION['email_otp_email'] = $email;
+        $_SESSION['email_otp_time'] = time();
+        
+    } catch (Exception $e) {
+        error_log("Failed to store OTP in database: " . $e->getMessage());
+        return ['success' => false, 'error' => 'Failed to generate OTP'];
+    }
     
     $emailContent = "
     <html>
@@ -289,42 +271,14 @@ function sendEmailOTP($data) {
     </html>";
     
     try {
-        $mail = new PHPMailer(true);
-        
-        // Use mock mode for development (since we don't have real SMTP configured)
-        error_log("EMAIL OTP DEBUG: Sending OTP $otp to $email");
-        
         // For development - simulate email sending
-        if (SMTP_USERNAME === 'YOUR_GMAIL_ADDRESS@gmail.com') {
-            // Mock mode - log the email instead of sending
-            error_log("MOCK EMAIL OTP: $otp sent to $email");
-            return [
-                'success' => true,
-                'message' => 'OTP sent successfully to your email (Development Mode)',
-                'debug_otp' => $otp // Remove in production
-            ];
-        }
-        
-        // Real email sending configuration
-        $mail->isSMTP();
-        $mail->Host = SMTP_HOST;
-        $mail->SMTPAuth = true;
-        $mail->Username = SMTP_USERNAME;
-        $mail->Password = SMTP_PASSWORD;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = SMTP_PORT;
-
-        $mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
-        $mail->addAddress($email);
-        $mail->isHTML(true);
-        $mail->Subject = 'Verify Your Email - AgoraCart';
-        $mail->Body = $emailContent;
-
-        $mail->send();
+        error_log("MOCK EMAIL OTP: $otp sent to $email");
         return [
             'success' => true,
-            'message' => 'OTP sent successfully to your email'
+            'message' => 'OTP sent successfully to your email (Development Mode)',
+            'debug_otp' => $otp // Remove in production
         ];
+        
     } catch (Exception $e) {
         error_log("Email OTP sending failed: " . $e->getMessage());
         return [
@@ -347,9 +301,29 @@ function sendPhoneOTP($data) {
     }
     
     $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
-    $_SESSION['phone_otp'] = $otp;
-    $_SESSION['phone_otp_phone'] = $phone;
-    $_SESSION['phone_otp_time'] = time();
+    
+    // Store OTP in database
+    try {
+        $pdo = getDbConnection();
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+        
+        // Delete any existing OTP for this phone
+        $stmt = $pdo->prepare("DELETE FROM user_otp_verification WHERE phone = ?");
+        $stmt->execute([$phone]);
+        
+        // Insert new OTP
+        $stmt = $pdo->prepare("INSERT INTO user_otp_verification (phone, phone_otp, phone_otp_expires_at) VALUES (?, ?, ?)");
+        $stmt->execute([$phone, $otp, $expiresAt]);
+        
+        // Store in session as backup
+        $_SESSION['phone_otp'] = $otp;
+        $_SESSION['phone_otp_phone'] = $phone;
+        $_SESSION['phone_otp_time'] = time();
+        
+    } catch (Exception $e) {
+        error_log("Failed to store phone OTP in database: " . $e->getMessage());
+        return ['success' => false, 'error' => 'Failed to generate OTP'];
+    }
     
     $smsContent = "Your AgoraCart verification code is: $otp. Valid for 10 minutes. Do not share this code.";
     
@@ -437,38 +411,65 @@ function verifyEmailOTP($data) {
         return ['success' => false, 'error' => 'Email and OTP are required'];
     }
     
-    // Check if OTP exists and is valid
-    $storedOTP = $_SESSION['email_otp'] ?? '';
-    $storedEmail = $_SESSION['email_otp_email'] ?? '';
-    $otpTime = $_SESSION['email_otp_time'] ?? 0;
-    
-    // Check if OTP has expired (10 minutes = 600 seconds)
-    if (time() - $otpTime > 600) {
+    try {
+        $pdo = getDbConnection();
+        
+        // Check database first
+        $stmt = $pdo->prepare("SELECT * FROM user_otp_verification WHERE email = ? AND email_otp = ? AND email_otp_expires_at > NOW()");
+        $stmt->execute([$email, $otp]);
+        $otpRecord = $stmt->fetch();
+        
+        if ($otpRecord) {
+            // OTP is valid, mark as verified
+            $stmt = $pdo->prepare("UPDATE user_otp_verification SET email_verified = true WHERE email = ?");
+            $stmt->execute([$email]);
+            
+            $_SESSION['email_verified'] = true;
+            $_SESSION['verified_email'] = $email;
+            
+            return [
+                'success' => true,
+                'message' => 'Email verified successfully'
+            ];
+        }
+        
+        // Fallback to session check
+        $storedOTP = $_SESSION['email_otp'] ?? '';
+        $storedEmail = $_SESSION['email_otp_email'] ?? '';
+        $otpTime = $_SESSION['email_otp_time'] ?? 0;
+        
+        // Check if OTP has expired (10 minutes = 600 seconds)
+        if (time() - $otpTime > 600) {
+            unset($_SESSION['email_otp'], $_SESSION['email_otp_email'], $_SESSION['email_otp_time']);
+            return ['success' => false, 'error' => 'OTP has expired. Please request a new one.'];
+        }
+        
+        // Check if email matches
+        if ($storedEmail !== $email) {
+            return ['success' => false, 'error' => 'Invalid email for OTP verification'];
+        }
+        
+        // Check if OTP matches
+        if ($storedOTP !== $otp) {
+            return ['success' => false, 'error' => 'Invalid OTP. Please try again.'];
+        }
+        
+        // OTP is valid, mark email as verified
+        $_SESSION['email_verified'] = true;
+        $_SESSION['verified_email'] = $email;
+        
+        // Clean up OTP from session
         unset($_SESSION['email_otp'], $_SESSION['email_otp_email'], $_SESSION['email_otp_time']);
-        return ['success' => false, 'error' => 'OTP has expired. Please request a new one.'];
+        
+        return [
+            'success' => true,
+            'message' => 'Email verified successfully'
+        ];
+        
+    } catch (Exception $e) {
+        error_log("Error verifying email OTP: " . $e->getMessage());
+        return ['success' => false, 'error' => 'Verification failed. Please try again.'];
     }
-    
-    // Check if email matches
-    if ($storedEmail !== $email) {
-        return ['success' => false, 'error' => 'Invalid email for OTP verification'];
-    }
-    
-    // Check if OTP matches
-    if ($storedOTP !== $otp) {
-        return ['success' => false, 'error' => 'Invalid OTP. Please try again.'];
-    }
-    
-    // OTP is valid, mark email as verified
-    $_SESSION['email_verified'] = true;
-    $_SESSION['verified_email'] = $email;
-    
-    // Clean up OTP from session
-    unset($_SESSION['email_otp'], $_SESSION['email_otp_email'], $_SESSION['email_otp_time']);
-    
-    return [
-        'success' => true,
-        'message' => 'Email verified successfully'
-    ];
 }
 
 function verifyPhoneOTP($data) {

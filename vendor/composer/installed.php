@@ -1,0 +1,41 @@
+<?php return array(
+    'root' => array(
+        'name' => 'agoracart/ecommerce',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '6e4c0afb279aae5953364ff9388cb5b1cb0cc6f3',
+        'type' => 'project',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => false,
+    ),
+    'versions' => array(
+        'agoracart/ecommerce' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '6e4c0afb279aae5953364ff9388cb5b1cb0cc6f3',
+            'type' => 'project',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'phpmailer/phpmailer' => array(
+            'pretty_version' => 'v6.10.0',
+            'version' => '6.10.0.0',
+            'reference' => 'bf74d75a1fde6beaa34a0ddae2ec5fce0f72a144',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../phpmailer/phpmailer',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'twilio/sdk' => array(
+            'pretty_version' => '7.16.2',
+            'version' => '7.16.2.0',
+            'reference' => '02ad214b0cc9fc513bd67df251d54aed8901284f',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../twilio/sdk',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+    ),
+);

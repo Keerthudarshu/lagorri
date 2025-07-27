@@ -74,6 +74,29 @@ try {
 }
 
 function getCartContents($cartId) {
+    // For database-based cart, we'll use user session
+    session_start();
+    $userId = $_SESSION['user_id'] ?? null;
+    
+    if ($userId) {
+        try {
+            $pdo = getDbConnection();
+            $stmt = $pdo->prepare("
+                SELECT ci.*, p.name, p.price, p.discount_price, pi.image_url
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true
+                WHERE ci.user_id = ?
+                ORDER BY ci.created_at DESC
+            ");
+            $stmt->execute([$userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log("Cart fetch error: " . $e->getMessage());
+        }
+    }
+    
+    // Fallback to file-based cart for guest users
     $cartFile = DATA_DIR . 'carts/' . $cartId . '.json';
     if (file_exists($cartFile)) {
         return json_decode(file_get_contents($cartFile), true);
@@ -92,6 +115,57 @@ function saveCart($cartId, $cart) {
 }
 
 function addToCart($cartId, $productId, $quantity, $options = []) {
+    session_start();
+    $userId = $_SESSION['user_id'] ?? null;
+    
+    if ($userId) {
+        try {
+            $pdo = getDbConnection();
+            
+            // Check if item already exists in cart
+            $size = $options['size'] ?? null;
+            $color = $options['color'] ?? null;
+            
+            $stmt = $pdo->prepare("
+                SELECT id, quantity FROM cart_items 
+                WHERE user_id = ? AND product_id = ? AND size = ? AND color = ?
+            ");
+            $stmt->execute([$userId, $productId, $size, $color]);
+            $existingItem = $stmt->fetch();
+            
+            if ($existingItem) {
+                // Update existing item
+                $newQuantity = $existingItem['quantity'] + $quantity;
+                $stmt = $pdo->prepare("UPDATE cart_items SET quantity = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$newQuantity, $existingItem['id']]);
+            } else {
+                // Add new item
+                $stmt = $pdo->prepare("
+                    INSERT INTO cart_items (user_id, product_id, quantity, size, color) 
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$userId, $productId, $quantity, $size, $color]);
+            }
+            
+            // Get cart count
+            $stmt = $pdo->prepare("SELECT SUM(quantity) as total FROM cart_items WHERE user_id = ?");
+            $stmt->execute([$userId]);
+            $result = $stmt->fetch();
+            $cartCount = $result['total'] ?? 0;
+            
+            return [
+                'success' => true,
+                'message' => 'Item added to cart',
+                'cart_count' => $cartCount
+            ];
+            
+        } catch (Exception $e) {
+            error_log("Add to cart error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to add item to cart'];
+        }
+    }
+    
+    // Fallback to file-based cart for guests
     $cart = getCartContents($cartId);
     
     // Check if item already exists in cart

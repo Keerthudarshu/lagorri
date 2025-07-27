@@ -1,18 +1,18 @@
 <?php
 session_start();
 
-// Database configuration - MySQL (XAMPP compatible)
-define('DB_HOST', 'localhost');
-define('DB_PORT', 3306);
-define('DB_NAME', 'agoracart');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+// Database configuration - PostgreSQL (Replit compatible)
+define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
+define('DB_PORT', $_ENV['PGPORT'] ?? 5432);
+define('DB_NAME', $_ENV['PGDATABASE'] ?? 'agoracart');
+define('DB_USER', $_ENV['PGUSER'] ?? 'postgres');
+define('DB_PASS', $_ENV['PGPASSWORD'] ?? '');
 
 define('BASE_URL', '/');
 
 // Razorpay configuration
-define('RAZORPAY_KEY_ID', 'rzp_test_your_key_id');
-define('RAZORPAY_KEY_SECRET', 'your_secret_key');
+define('RAZORPAY_KEY_ID', $_ENV['RAZORPAY_KEY_ID'] ?? 'rzp_test_your_key_id');
+define('RAZORPAY_KEY_SECRET', $_ENV['RAZORPAY_KEY_SECRET'] ?? 'your_secret_key');
 
 // Site configuration
 define('SITE_NAME', 'Lagorii Kids');
@@ -21,6 +21,8 @@ define('SITE_DESCRIPTION', 'Premium Children\'s Clothing - Trusted by 1 Lakh+ Pa
 // Currency settings
 if (!defined('DEFAULT_CURRENCY')) {
     define('DEFAULT_CURRENCY', 'EUR');
+}
+if (!defined('CURRENCY_SYMBOL')) {
     define('CURRENCY_SYMBOL', '€');
 }
 
@@ -30,9 +32,9 @@ function getDbConnection() {
     
     if ($pdo === null) {
         try {
-            // MySQL connection for XAMPP
+            // PostgreSQL connection for Replit
             $dsn = sprintf(
-                "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
+                "pgsql:host=%s;port=%s;dbname=%s",
                 DB_HOST,
                 DB_PORT,
                 DB_NAME
@@ -58,8 +60,8 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
     
     $sql = "SELECT p.*, pi.image_url as primary_image 
             FROM products p 
-            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = 1 
-            WHERE p.is_active = 1";
+            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
+            WHERE p.is_active = true";
     
     $params = [];
     
@@ -69,7 +71,7 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
     }
     
     if ($featured) {
-        $sql .= " AND p.is_featured = 1";
+        $sql .= " AND p.is_featured = true";
     }
     
     $sql .= " ORDER BY p.created_at DESC";
@@ -90,13 +92,13 @@ function getProductById($id) {
     
     $stmt = $pdo->prepare("
         SELECT p.*, 
-               GROUP_CONCAT(DISTINCT pi.image_url) as images,
-               GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END) as sizes,
-               GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END) as colors
+               STRING_AGG(DISTINCT pi.image_url, ',') as images,
+               STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END, ',') as sizes,
+               STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END, ',') as colors
         FROM products p 
         LEFT JOIN product_images pi ON p.id = pi.product_id
         LEFT JOIN product_attributes pa ON p.id = pa.product_id
-        WHERE p.id = ? AND p.is_active = 1
+        WHERE p.id = ? AND p.is_active = true
         GROUP BY p.id
     ");
     
@@ -106,8 +108,8 @@ function getProductById($id) {
     if ($product) {
         // Convert comma-separated strings to arrays
         $product['images'] = $product['images'] ? explode(',', $product['images']) : [];
-        $product['sizes'] = $product['sizes'] ? explode(',', $product['sizes']) : [];
-        $product['colors'] = $product['colors'] ? explode(',', $product['colors']) : [];
+        $product['sizes'] = $product['sizes'] ? array_filter(explode(',', $product['sizes'])) : [];
+        $product['colors'] = $product['colors'] ? array_filter(explode(',', $product['colors'])) : [];
     }
     
     return $product;
@@ -116,7 +118,7 @@ function getProductById($id) {
 function getCategories() {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = 1 ORDER BY name");
+    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = true ORDER BY name");
     $stmt->execute();
     
     return $stmt->fetchAll();
@@ -128,9 +130,9 @@ function searchProducts($query, $limit = 20) {
     $stmt = $pdo->prepare("
         SELECT p.*, pi.image_url as primary_image 
         FROM products p 
-        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = 1 
-        WHERE p.is_active = 1 
-        AND (p.name LIKE ? OR p.description LIKE ? OR p.subcategory LIKE ?)
+        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
+        WHERE p.is_active = true 
+        AND (p.name ILIKE ? OR p.description ILIKE ? OR p.subcategory ILIKE ?)
         ORDER BY p.name
         LIMIT ?
     ");
@@ -153,7 +155,7 @@ function generateOrderNumber() {
 function authenticateUser($email, $password) {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = 1");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = true");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     
@@ -212,6 +214,27 @@ function createUser($userData) {
         'last_name' => $user['last_name'],
         'phone' => $user['phone']
     ];
+}
+
+// Helper functions for data management
+define('DATA_DIR', __DIR__ . '/data/');
+
+function loadJsonData($filename) {
+    $filepath = DATA_DIR . $filename;
+    if (!file_exists($filepath)) {
+        return [];
+    }
+    $content = file_get_contents($filepath);
+    return $content ? json_decode($content, true) : [];
+}
+
+function saveJsonData($filename, $data) {
+    $filepath = DATA_DIR . $filename;
+    $dir = dirname($filepath);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    return file_put_contents($filepath, json_encode($data, JSON_PRETTY_PRINT));
 }
 
 // Initialize database connection on first load
