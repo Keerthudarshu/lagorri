@@ -1,0 +1,116 @@
+[
+  {
+    "id": "1",
+    "name": "Black Party Frock With Pearl-Studded Bows For Girls",
+    "description": "Elegant black party frock featuring pearl-studded bows, perfect for special occasions. Made with premium quality fabric for comfort and style.",
+    "price": 23,
+    "originalPrice": 28,
+    "category": "girls",
+    "subcategory": "party-wear",
+    "images": [
+      "https://pixabay.com/get/g8c1680a2736bfeebcb1ed90cba185ba7b64b12090c1f1569dc309b576c51656d7077fb8c2c3b7e5d7e861b7d983593d1c72db50afb6c3a7aa09755bb56fa801a_1280.jpg",
+      "https://pixabay.com/get/gcdf814a065e6bfa8bb8c53ec28c8799765f52900d4c35fcaac342ce9f567c6e9fbf9bb9d944dbf5068962fdd65a9c562d7f0d3ba9d41e7b1eb0dbb211c61d3b7_1280.jpg"
+    ],
+    "sizes": ["2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y"],
+    "colors": ["Black", "Navy Blue"],
+    "inStock": true,
+    "featured": true,
+    "newArrival": true,
+    "tags": ["party", "formal", "girls", "frock"]
+  },
+  {
+    "id": "2",
+    "name": "Pink Floral Embellished Party Frock",
+    "description": "Beautiful pink floral embellished party frock with puff sleeves and ruffle skirt. Perfect for birthday parties and special events.",
+    "price": 31,
+    "originalPrice": 38,
+    "category": "girls",
+    "subcategory": "party-wear",
+    "images": [
+      "https://pixabay.com/get/g127618263fddd2e0f563c2f3be3395719271faecc65ce2c9b80db18ced60df08a85fb8cf7c6a2562dd31bca5996480860b4f40bf5b38ef32835525ed6de4ff1a_1280.jpg",
+      "https://pixabay.com/get/g6c787870dd3a129aa3aee356d58fbebda1479ddec6e59a9489773dd0e3bfb42eadfe6fedbc3e17afcc904bf0a6ab89ab880d90bab984206bd0eb3dc589e366cd_1280.jpg"
+    ],
+    "sizes": ["2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y"],
+    "colors": ["Pink", "Lavender"],
+    "inStock": true,
+    "featured": true,
+    "newArrival": true,
+    "tags": ["party", "floral", "girls", "frock"]
+  },
+  {
+    "id": "3",
+    "name": "Grey Sleeveless Ethnic Gown",
+    "description": "Elegant grey sleeveless ethnic gown with embroidered yoke for girls. Perfect for traditional occasions and festivals.",
+    "price": 31,
+    "originalPrice": 35,
+    "category": "girls",
+    "subcategory": "ethnic-wear",
+    "images": [
+      "https://pixabay.com/get/g6890f56f02da085024afc3bbff6b9230fdf8323ed25fcfa534b5f82227b9d5c4024465c5d177cc05d152a80b6e1001369f6e8fa0973899507c806d66d2c64af7_1280.jpg",
+      "https://pixabay.com/get/g3b2c237c525f3e977ae13df99362750e3b60f3e363c535d6ca3086b96a2e3e303b82b02b721b8183e51bf8be2fb34615835fa6cfbc6701ff90fcf96d0614b125_1280.jpg"
+    ],
+    "sizes": ["3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y", "8-9Y"],
+    "colors": ["Grey", "Cream"],
+    "inStock": true,
+    "featured": false,
+    "newArrival": true,
+    "tags": ["ethnic", "traditional", "girls", "gown"]
+  },
+  {
+    "id": "4",
+    "name": "Boys Designer Kurta Set",
+    "description": "Premium designer kurta set for boys with intricate embroidery. Perfect for weddings and festive occasions.",
+    "price": 42,
+    "originalPrice": 50,
+    "category": "boys",
+    "subcategory": "ethnic-wear",
+    "images": [
+      "https://pixabay.com/get/geda7b82ad706eb7ad2aa743d2a7d5350b0202285dae65a4a5b9657b12747328766d73eb3e218130b36abfd7937db29c4833c4c3f7fa4d6b544a07b075db1cf1a_1280.jpg",
+      "https://pixabay.com/get/gd30dd95a11648bc01007ec21220c23381bbfdbfdb97d7bca905de16cc295af8956eeebc25cef8f3e19755618c23aac07e81b0bc8bb54b58d33e88d36bf963c08_1280.jpg"
+    ],
+    "sizes": ["2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y"],
+    "colors": ["Cream", "Gold", "Navy Blue"],
+    "inStock": true,
+    "featured": true,
+    "newArrival": false,
+    "tags": ["ethnic", "kurta", "boys", "formal"]
+  },
+  {
+    "id": "5",
+    "name": "Infant Romper Set",
+    "description": "Comfortable and adorable romper set for infants. Made with soft, breathable fabric perfect for everyday wear.",
+    "price": 18,
+    "originalPrice": 22,
+    "category": "infants",
+    "subcategory": "rompers",
+    "images": [
+      "https://pixabay.com/get/g127618263fddd2e0f563c2f3be3395719271faecc65ce2c9b80db18ced60df08a85fb8cf7c6a2562dd31bca5996480860b4f40bf5b38ef32835525ed6de4ff1a_1280.jpg",
+      "https://pixabay.com/get/g6c787870dd3a129aa3aee356d58fbebda1479ddec6e59a9489773dd0e3bfb42eadfe6fedbc3e17afcc904bf0a6ab89ab880d90bab984206bd0eb3dc589e366cd_1280.jpg"
+    ],
+    "sizes": ["0-3M", "3-6M", "6-9M", "9-12M", "12-18M"],
+    "colors": ["Pink", "Blue", "Yellow", "White"],
+    "inStock": true,
+    "featured": true,
+    "newArrival": true,
+    "tags": ["infant", "romper", "comfortable", "everyday"]
+  },
+  {
+    "id": "6",
+    "name": "Boys Casual T-Shirt and Shorts Set",
+    "description": "Comfortable casual wear set for boys including trendy t-shirt and matching shorts. Perfect for daily wear and playtime.",
+    "price": 25,
+    "originalPrice": 30,
+    "category": "boys",
+    "subcategory": "casual-wear",
+    "images": [
+      "https://pixabay.com/get/geda7b82ad706eb7ad2aa743d2a7d5350b0202285dae65a4a5b9657b12747328766d73eb3e218130b36abfd7937db29c4833c4c3f7fa4d6b544a07b075db1cf1a_1280.jpg",
+      "https://pixabay.com/get/gd30dd95a11648bc01007ec21220c23381bbfdbfdb97d7bca905de16cc295af8956eeebc25cef8f3e19755618c23aac07e81b0bc8bb54b58d33e88d36bf963c08_1280.jpg"
+    ],
+    "sizes": ["2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y"],
+    "colors": ["Blue", "Green", "Red", "Black"],
+    "inStock": true,
+    "featured": false,
+    "newArrival": false,
+    "tags": ["boys", "casual", "comfortable", "daily wear"]
+  }
+]

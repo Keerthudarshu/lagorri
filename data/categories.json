@@ -1,0 +1,45 @@
+{
+  "girls": {
+    "id": "girls",
+    "name": "Girls",
+    "image": "https://pixabay.com/get/g8c1680a2736bfeebcb1ed90cba185ba7b64b12090c1f1569dc309b576c51656d7077fb8c2c3b7e5d7e861b7d983593d1c72db50afb6c3a7aa09755bb56fa801a_1280.jpg",
+    "subcategories": {
+      "party-wear": "Party Wear",
+      "casual-wear": "Casual Wear",
+      "ethnic-wear": "Ethnic Wear",
+      "frocks": "Frocks",
+      "gowns": "Gowns",
+      "lehenga-choli": "Lehenga Choli"
+    }
+  },
+  "boys": {
+    "id": "boys",
+    "name": "Boys",
+    "image": "https://pixabay.com/get/gcdf814a065e6bfa8bb8c53ec28c8799765f52900d4c35fcaac342ce9f567c6e9fbf9bb9d944dbf5068962fdd65a9c562d7f0d3ba9d41e7b1eb0dbb211c61d3b7_1280.jpg",
+    "subcategories": {
+      "party-wear": "Party Wear",
+      "casual-wear": "Casual Wear",
+      "ethnic-wear": "Ethnic Wear",
+      "kurta-sets": "Kurta Sets",
+      "suits": "Suits",
+      "shirts": "Shirts"
+    }
+  },
+  "infants": {
+    "id": "infants",
+    "name": "Infants",
+    "image": "https://pixabay.com/get/g127618263fddd2e0f563c2f3be3395719271faecc65ce2c9b80db18ced60df08a85fb8cf7c6a2562dd31bca5996480860b4f40bf5b38ef32835525ed6de4ff1a_1280.jpg",
+    "subcategories": {
+      "rompers": "Rompers",
+      "onesies": "Onesies",
+      "sets": "Sets",
+      "dresses": "Dresses"
+    }
+  },
+  "occasions": {
+    "wedding": "Wedding Wear",
+    "party": "Party Wear",
+    "casual": "Casual Wear",
+    "festive": "Festive Wear"
+  }
+}
