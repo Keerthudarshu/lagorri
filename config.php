@@ -1,7 +1,8 @@
 <?php
 session_start();
 
-// Database configuration - PostgreSQL (Replit compatible)
+// Database configuration - PostgreSQL (Replit compatible) 
+// Note: Replit provides PostgreSQL by default, not MySQL
 define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
 define('DB_PORT', $_ENV['PGPORT'] ?? 5432);
 define('DB_NAME', $_ENV['PGDATABASE'] ?? 'agoracart');
