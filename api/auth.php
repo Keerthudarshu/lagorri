@@ -3,6 +3,12 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 require_once '../config.php';
+
+// Include autoloader for packages
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
+
 session_start(); // Start session for OTP storage
 
 header('Content-Type: application/json');
@@ -225,14 +231,25 @@ define('SMTP_PORT', 587);
 define('SMTP_USERNAME', 'YOUR_GMAIL_ADDRESS@gmail.com');
 define('SMTP_PASSWORD', 'YOUR_GMAIL_APP_PASSWORD');
 define('SMTP_FROM_EMAIL', 'YOUR_GMAIL_ADDRESS@gmail.com');
-define('SMTP_FROM_NAME', 'Your App Name');
+define('SMTP_FROM_NAME', 'AgoraCart');
 
-// TextLocal SMS API
+// Twilio SMS API
+define('TWILIO_SID', 'YOUR_TWILIO_SID');
+define('TWILIO_TOKEN', 'YOUR_TWILIO_TOKEN');
+define('TWILIO_PHONE_NUMBER', 'YOUR_TWILIO_PHONE_NUMBER');
+
+// TextLocal SMS API (Alternative)
 define('TEXTLOCAL_API_KEY', 'YOUR_TEXTLOCAL_API_KEY');
 define('TEXTLOCAL_SENDER', 'TXTLCL'); // Or your approved sender ID
 
+// Include PHPMailer classes
+require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
+require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+require_once __DIR__ . '/../PHPMailer/src/Exception.php';
+
 // OTP Functions
 use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
 function sendEmailOTP($data) {
@@ -243,25 +260,64 @@ function sendEmailOTP($data) {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return ['success' => false, 'error' => 'Invalid email format'];
     }
+    
     $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
     $_SESSION['email_otp'] = $otp;
     $_SESSION['email_otp_email'] = $email;
     $_SESSION['email_otp_time'] = time();
-    $emailContent = "<h2>Verify Your Email</h2><p>Your verification code is: <strong style='font-size: 24px; color: #007bff;'>$otp</strong></p><p>This code will expire in 10 minutes.</p>";
+    
+    $emailContent = "
+    <html>
+    <body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;'>
+        <div style='max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);'>
+            <h2 style='color: #333; text-align: center; margin-bottom: 30px;'>Verify Your Email</h2>
+            <p style='color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 30px;'>
+                Please use the verification code below to verify your email address:
+            </p>
+            <div style='text-align: center; margin: 30px 0;'>
+                <span style='font-size: 32px; font-weight: bold; color: #007bff; background-color: #f8f9fa; padding: 15px 30px; border-radius: 8px; border: 2px dashed #007bff; letter-spacing: 3px;'>$otp</span>
+            </div>
+            <p style='color: #666; font-size: 14px; text-align: center; margin-top: 30px;'>
+                This code will expire in 10 minutes for security reasons.
+            </p>
+            <hr style='border: none; border-top: 1px solid #eee; margin: 30px 0;'>
+            <p style='color: #999; font-size: 12px; text-align: center;'>
+                If you didn't request this verification, please ignore this email.
+            </p>
+        </div>
+    </body>
+    </html>";
+    
     try {
         $mail = new PHPMailer(true);
+        
+        // Use mock mode for development (since we don't have real SMTP configured)
+        error_log("EMAIL OTP DEBUG: Sending OTP $otp to $email");
+        
+        // For development - simulate email sending
+        if (SMTP_USERNAME === 'YOUR_GMAIL_ADDRESS@gmail.com') {
+            // Mock mode - log the email instead of sending
+            error_log("MOCK EMAIL OTP: $otp sent to $email");
+            return [
+                'success' => true,
+                'message' => 'OTP sent successfully to your email (Development Mode)',
+                'debug_otp' => $otp // Remove in production
+            ];
+        }
+        
+        // Real email sending configuration
         $mail->isSMTP();
-        $mail->Host = 'smtp.example.com';
+        $mail->Host = SMTP_HOST;
         $mail->SMTPAuth = true;
-        $mail->Username = 'your@email.com';
-        $mail->Password = 'yourpassword';
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
+        $mail->Username = SMTP_USERNAME;
+        $mail->Password = SMTP_PASSWORD;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = SMTP_PORT;
 
-        $mail->setFrom('your@email.com', 'Your App');
+        $mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
         $mail->addAddress($email);
         $mail->isHTML(true);
-        $mail->Subject = 'Verify Your Email';
+        $mail->Subject = 'Verify Your Email - AgoraCart';
         $mail->Body = $emailContent;
 
         $mail->send();
@@ -273,51 +329,102 @@ function sendEmailOTP($data) {
         error_log("Email OTP sending failed: " . $e->getMessage());
         return [
             'success' => false,
-            'error' => 'Failed to send email OTP'
+            'error' => 'Failed to send email OTP: ' . $e->getMessage()
         ];
     }
 }
-
-require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
-require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
-require_once __DIR__ . '/../PHPMailer/src/Exception.php';
-use Twilio\Rest\Client;
 
 function sendPhoneOTP($data) {
     $phone = $data['phone'] ?? '';
     if (empty($phone)) {
         return ['success' => false, 'error' => 'Phone number is required'];
     }
+    
+    // Clean and validate phone number
     $phone = preg_replace('/[^0-9+]/', '', $phone);
     if (strlen($phone) < 10) {
         return ['success' => false, 'error' => 'Invalid phone number'];
     }
+    
     $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
     $_SESSION['phone_otp'] = $otp;
     $_SESSION['phone_otp_phone'] = $phone;
     $_SESSION['phone_otp_time'] = time();
-    $smsContent = "Your verification code is: $otp. Valid for 10 minutes.";
+    
+    $smsContent = "Your AgoraCart verification code is: $otp. Valid for 10 minutes. Do not share this code.";
+    
     try {
-        $sid = 'your_twilio_sid';
-        $token = 'your_twilio_token';
-        $client = new Client($sid, $token);
-
-        $client->messages->create(
-            $phone,
-            [
-                'from' => 'your_twilio_number',
-                'body' => $smsContent
-            ]
-        );
+        // Check if Twilio is configured
+        if (!defined('TWILIO_SID') || TWILIO_SID === 'YOUR_TWILIO_SID') {
+            // Mock mode for development
+            error_log("MOCK SMS OTP: $otp sent to $phone");
+            return [
+                'success' => true,
+                'message' => 'OTP sent successfully to your phone (Development Mode)',
+                'debug_otp' => $otp // Remove in production
+            ];
+        }
+        
+        // For Twilio SDK - when properly installed
+        if (class_exists('Twilio\Rest\Client')) {
+            $client = new \Twilio\Rest\Client(TWILIO_SID, TWILIO_TOKEN);
+            
+            $client->messages->create(
+                $phone,
+                [
+                    'from' => TWILIO_PHONE_NUMBER,
+                    'body' => $smsContent
+                ]
+            );
+            
+            return [
+                'success' => true,
+                'message' => 'OTP sent successfully to your phone'
+            ];
+        }
+        
+        // Alternative SMS service (TextLocal) - for manual implementation
+        if (defined('TEXTLOCAL_API_KEY') && TEXTLOCAL_API_KEY !== 'YOUR_TEXTLOCAL_API_KEY') {
+            $data = [
+                'apikey' => TEXTLOCAL_API_KEY,
+                'numbers' => $phone,
+                'message' => $smsContent,
+                'sender' => TEXTLOCAL_SENDER
+            ];
+            
+            $ch = curl_init('https://api.textlocal.in/send/');
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            
+            $response = curl_exec($ch);
+            curl_close($ch);
+            
+            $result = json_decode($response, true);
+            
+            if ($result && $result['status'] === 'success') {
+                return [
+                    'success' => true,
+                    'message' => 'OTP sent successfully to your phone'
+                ];
+            } else {
+                throw new Exception('SMS sending failed');
+            }
+        }
+        
+        // Fallback to mock mode
+        error_log("SMS OTP DEBUG: No SMS service configured, using mock mode");
         return [
             'success' => true,
-            'message' => 'OTP sent successfully to your phone'
+            'message' => 'OTP sent successfully to your phone (Mock Mode)',
+            'debug_otp' => $otp
         ];
+        
     } catch (Exception $e) {
-        error_log('TextLocal SMS exception: ' . $e->getMessage());
+        error_log('SMS OTP exception: ' . $e->getMessage());
         return [
             'success' => false,
-            'error' => 'Failed to send phone OTP'
+            'error' => 'Failed to send phone OTP: ' . $e->getMessage()
         ];
     }
 }
