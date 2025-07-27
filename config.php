@@ -1,13 +1,24 @@
 <?php
 session_start();
 
-// Database configuration - PostgreSQL (Replit compatible) 
-// Note: Replit provides PostgreSQL by default, not MySQL
-define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
-define('DB_PORT', $_ENV['PGPORT'] ?? 5432);
-define('DB_NAME', $_ENV['PGDATABASE'] ?? 'agoracart');
-define('DB_USER', $_ENV['PGUSER'] ?? 'postgres');
-define('DB_PASS', $_ENV['PGPASSWORD'] ?? '');
+// Auto-detect environment and configure database accordingly
+if (isset($_ENV['PGHOST']) || isset($_ENV['DATABASE_URL'])) {
+    // Replit environment - use PostgreSQL
+    define('DB_TYPE', 'postgresql');
+    define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
+    define('DB_PORT', $_ENV['PGPORT'] ?? 5432);
+    define('DB_NAME', $_ENV['PGDATABASE'] ?? 'agoracart');
+    define('DB_USER', $_ENV['PGUSER'] ?? 'postgres');
+    define('DB_PASS', $_ENV['PGPASSWORD'] ?? '');
+} else {
+    // Local environment (XAMPP) - use MySQL
+    define('DB_TYPE', 'mysql');
+    define('DB_HOST', 'localhost');
+    define('DB_PORT', 3306);
+    define('DB_NAME', 'agoracart');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+}
 
 define('BASE_URL', '/');
 
@@ -33,13 +44,23 @@ function getDbConnection() {
     
     if ($pdo === null) {
         try {
-            // PostgreSQL connection for Replit
-            $dsn = sprintf(
-                "pgsql:host=%s;port=%s;dbname=%s",
-                DB_HOST,
-                DB_PORT,
-                DB_NAME
-            );
+            if (DB_TYPE === 'postgresql') {
+                // PostgreSQL connection for Replit
+                $dsn = sprintf(
+                    "pgsql:host=%s;port=%s;dbname=%s",
+                    DB_HOST,
+                    DB_PORT,
+                    DB_NAME
+                );
+            } else {
+                // MySQL connection for XAMPP/Local
+                $dsn = sprintf(
+                    "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
+                    DB_HOST,
+                    DB_PORT,
+                    DB_NAME
+                );
+            }
             
             $pdo = new PDO($dsn, DB_USER, DB_PASS, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -59,10 +80,14 @@ function getDbConnection() {
 function getProducts($categoryId = null, $limit = null, $featured = false) {
     $pdo = getDbConnection();
     
+    // Use database-specific boolean syntax
+    $activeValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    $primaryValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    
     $sql = "SELECT p.*, pi.image_url as primary_image 
             FROM products p 
-            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
-            WHERE p.is_active = true";
+            LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = $primaryValue 
+            WHERE p.is_active = $activeValue";
     
     $params = [];
     
@@ -72,7 +97,8 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
     }
     
     if ($featured) {
-        $sql .= " AND p.is_featured = true";
+        $featuredValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+        $sql .= " AND p.is_featured = $featuredValue";
     }
     
     $sql .= " ORDER BY p.created_at DESC";
@@ -91,17 +117,34 @@ function getProducts($categoryId = null, $limit = null, $featured = false) {
 function getProductById($id) {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("
-        SELECT p.*, 
-               STRING_AGG(DISTINCT pi.image_url, ',') as images,
-               STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END, ',') as sizes,
-               STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END, ',') as colors
-        FROM products p 
-        LEFT JOIN product_images pi ON p.id = pi.product_id
-        LEFT JOIN product_attributes pa ON p.id = pa.product_id
-        WHERE p.id = ? AND p.is_active = true
-        GROUP BY p.id
-    ");
+    // Use database-specific functions for string aggregation
+    $activeValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    
+    if (DB_TYPE === 'postgresql') {
+        $stmt = $pdo->prepare("
+            SELECT p.*, 
+                   STRING_AGG(DISTINCT pi.image_url, ',') as images,
+                   STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END, ',') as sizes,
+                   STRING_AGG(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END, ',') as colors
+            FROM products p 
+            LEFT JOIN product_images pi ON p.id = pi.product_id
+            LEFT JOIN product_attributes pa ON p.id = pa.product_id
+            WHERE p.id = ? AND p.is_active = $activeValue
+            GROUP BY p.id
+        ");
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT p.*, 
+                   GROUP_CONCAT(DISTINCT pi.image_url) as images,
+                   GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'size' THEN pa.attribute_value END) as sizes,
+                   GROUP_CONCAT(DISTINCT CASE WHEN pa.attribute_name = 'color' THEN pa.attribute_value END) as colors
+            FROM products p 
+            LEFT JOIN product_images pi ON p.id = pi.product_id
+            LEFT JOIN product_attributes pa ON p.id = pa.product_id
+            WHERE p.id = ? AND p.is_active = $activeValue
+            GROUP BY p.id
+        ");
+    }
     
     $stmt->execute([$id]);
     $product = $stmt->fetch();
@@ -119,7 +162,9 @@ function getProductById($id) {
 function getCategories() {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = true ORDER BY name");
+    // Use database-specific boolean syntax
+    $activeValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    $stmt = $pdo->prepare("SELECT * FROM categories WHERE is_active = $activeValue ORDER BY name");
     $stmt->execute();
     
     return $stmt->fetchAll();
@@ -128,12 +173,17 @@ function getCategories() {
 function searchProducts($query, $limit = 20) {
     $pdo = getDbConnection();
     
+    // Use database-specific syntax for case-insensitive search
+    $activeValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    $primaryValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    $likeOp = (DB_TYPE === 'postgresql') ? 'ILIKE' : 'LIKE';
+    
     $stmt = $pdo->prepare("
         SELECT p.*, pi.image_url as primary_image 
         FROM products p 
-        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true 
-        WHERE p.is_active = true 
-        AND (p.name ILIKE ? OR p.description ILIKE ? OR p.subcategory ILIKE ?)
+        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = $primaryValue 
+        WHERE p.is_active = $activeValue 
+        AND (p.name $likeOp ? OR p.description $likeOp ? OR p.subcategory $likeOp ?)
         ORDER BY p.name
         LIMIT ?
     ");
@@ -156,7 +206,9 @@ function generateOrderNumber() {
 function authenticateUser($email, $password) {
     $pdo = getDbConnection();
     
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = true");
+    // Use database-specific boolean syntax
+    $activeValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_active = $activeValue");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     

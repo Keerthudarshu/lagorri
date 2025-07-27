@@ -421,7 +421,8 @@ function verifyEmailOTP($data) {
         
         if ($otpRecord) {
             // OTP is valid, mark as verified
-            $stmt = $pdo->prepare("UPDATE user_otp_verification SET email_verified = true WHERE email = ?");
+            $verifiedValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+            $stmt = $pdo->prepare("UPDATE user_otp_verification SET email_verified = $verifiedValue WHERE email = ?");
             $stmt->execute([$email]);
             
             $_SESSION['email_verified'] = true;

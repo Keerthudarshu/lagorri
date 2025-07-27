@@ -81,11 +81,14 @@ function getCartContents($cartId) {
     if ($userId) {
         try {
             $pdo = getDbConnection();
+            // Use database-specific boolean syntax
+            $primaryValue = (DB_TYPE === 'postgresql') ? 'true' : '1';
+            
             $stmt = $pdo->prepare("
                 SELECT ci.*, p.name, p.price, p.discount_price, pi.image_url
                 FROM cart_items ci
                 JOIN products p ON ci.product_id = p.id
-                LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true
+                LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = $primaryValue
                 WHERE ci.user_id = ?
                 ORDER BY ci.created_at DESC
             ");
@@ -136,7 +139,8 @@ function addToCart($cartId, $productId, $quantity, $options = []) {
             if ($existingItem) {
                 // Update existing item
                 $newQuantity = $existingItem['quantity'] + $quantity;
-                $stmt = $pdo->prepare("UPDATE cart_items SET quantity = ?, updated_at = NOW() WHERE id = ?");
+                $updateTime = (DB_TYPE === 'postgresql') ? 'NOW()' : 'CURRENT_TIMESTAMP';
+                $stmt = $pdo->prepare("UPDATE cart_items SET quantity = ?, updated_at = $updateTime WHERE id = ?");
                 $stmt->execute([$newQuantity, $existingItem['id']]);
             } else {
                 // Add new item

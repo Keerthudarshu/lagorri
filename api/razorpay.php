@@ -112,9 +112,10 @@ function verifyRazorpayPayment($data) {
         }
         
         // Update order with payment details
+        $updateTime = (DB_TYPE === 'postgresql') ? 'NOW()' : 'CURRENT_TIMESTAMP';
         $stmt = $pdo->prepare("
             UPDATE orders 
-            SET razorpay_payment_id = ?, razorpay_signature = ?, payment_status = 'completed', status = 'confirmed', updated_at = NOW()
+            SET razorpay_payment_id = ?, razorpay_signature = ?, payment_status = 'completed', status = 'confirmed', updated_at = $updateTime
             WHERE razorpay_order_id = ?
         ");
         $stmt->execute([$razorpayPaymentId, $razorpaySignature, $razorpayOrderId]);
